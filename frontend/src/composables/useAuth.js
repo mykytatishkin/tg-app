@@ -23,7 +23,7 @@ export function useAuth() {
     error.value = null;
 
     try {
-      const res = await fetch(getApiUrl('/api/auth/telegram'), {
+      const res = await fetch(getApiUrl('/auth/telegram'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ initData: initData.value }),
