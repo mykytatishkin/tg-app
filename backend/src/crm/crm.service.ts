@@ -212,8 +212,8 @@ export class CrmService {
       .leftJoinAndSelect('a.client', 'client')
       .leftJoinAndSelect('a.service', 'service')
       .where('a.masterId = :masterId', { masterId })
-      .orderBy('a.date', 'ASC')
-      .addOrderBy('a.startTime', 'ASC');
+      .orderBy('a.date', 'DESC')
+      .addOrderBy('a.startTime', 'DESC');
     if (from) qb.andWhere('a.date >= :from', { from });
     if (to) qb.andWhere('a.date <= :to', { to });
     if (upcomingOnly === true) {

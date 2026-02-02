@@ -29,6 +29,11 @@ body {
   min-height: 100vh;
   color: var(--tg-theme-text-color, #000000);
   background-color: var(--tg-theme-bg-color, #ffffff);
+  background-image: url('/bg-pattern.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 80% auto;
+  background-attachment: fixed;
 }
 
 h1 {
@@ -84,4 +89,5 @@ input, textarea {
   margin: 0 auto;
   padding: 1rem;
   min-height: 100vh;
+  position: relative;
 }
