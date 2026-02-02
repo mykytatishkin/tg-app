@@ -11,7 +11,7 @@
   -moz-osx-font-smoothing: grayscale;
 
   color: var(--tg-theme-text-color, #000000);
-  background-color: var(--tg-theme-bg-color, #ffffff);
+  background-color: transparent;
 }
 
 a {
@@ -23,17 +23,29 @@ a:hover {
   opacity: 0.9;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
+  min-height: 100%;
   color: var(--tg-theme-text-color, #000000);
-  background-color: var(--tg-theme-bg-color, #ffffff);
-  background-image: url('/bg-pattern.png');
+  position: relative;
+}
+
+/* Фон на отдельном слое — не скроллится, чёрный квадрат при скролле не появляется */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: #0f1419;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), url('/bg-pattern.png');
   background-repeat: no-repeat;
   background-position: center center;
-  background-size: 80% auto;
-  background-attachment: fixed;
+  background-size: cover;
 }
 
 h1 {
@@ -90,4 +102,10 @@ input, textarea {
   padding: 1rem;
   min-height: 100vh;
   position: relative;
+  background: transparent;
+}
+
+/* Прозрачный фон страниц — чтобы был виден общий фон приложения */
+#app > div {
+  background-color: transparent !important;
 }
