@@ -102,10 +102,10 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)]">
     <div class="flex items-center gap-3 mb-6">
       <button
-        class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
+        class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
         @click="goBack"
       >
         ← Назад
@@ -118,14 +118,14 @@ onMounted(load);
     <div v-if="!showForm" class="mb-6">
       <button
         type="button"
-        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] border border-[var(--tg-theme-section-separator-color)]"
         @click="openAddForm"
       >
         Добавить услугу
       </button>
     </div>
 
-    <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
+    <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)] space-y-3">
       <div>
         <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Название</label>
         <input
@@ -163,7 +163,7 @@ onMounted(load);
       <div class="flex gap-2">
         <button
           type="button"
-          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
+          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] border border-[var(--tg-theme-section-separator-color)] disabled:opacity-60"
           :disabled="submitting"
           @click="addService"
         >
@@ -171,7 +171,7 @@ onMounted(load);
         </button>
         <button
           type="button"
-          class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)]"
+          class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border border-[var(--tg-theme-section-separator-color)]"
           @click="showForm = false"
         >
           Отмена
@@ -185,10 +185,10 @@ onMounted(load);
       <li
         v-for="s in services"
         :key="s.id"
-        class="p-4 rounded-xl flex items-center justify-between gap-3"
-        :class="s.forModels ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
+        class="p-4 rounded-xl flex flex-col gap-3"
+        :class="s.forModels ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]'"
       >
-        <div class="min-w-0">
+        <div>
           <div class="font-medium">{{ s.name }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.durationMinutes }} min
@@ -196,19 +196,19 @@ onMounted(load);
             <span v-if="s.forModels" class="ml-1 text-neutral-400 font-medium">· Для моделей</span>
           </div>
         </div>
-        <div class="shrink-0 flex items-center gap-2">
+        <div class="flex items-center gap-2 justify-end">
           <button
             type="button"
-            class="text-sm px-2 py-1 rounded disabled:opacity-50"
-            :class="s.forModels ? 'bg-neutral-600 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
+            class="text-sm px-3 py-1.5 rounded border disabled:opacity-50 text-[var(--tg-theme-button-text-color)]"
+            :class="s.forModels ? 'bg-[var(--tg-theme-button-color)] border-[var(--tg-theme-section-separator-color)]' : 'bg-[var(--tg-theme-section-bg-color)] border-[var(--tg-theme-section-separator-color)]'"
             :disabled="togglingForModelsId === s.id"
             @click="toggleForModels(s)"
           >
-            {{ togglingForModelsId === s.id ? '…' : (s.forModels ? 'Для моделей ✓' : 'Для моделей') }}
+            {{ togglingForModelsId === s.id ? '…' : (s.forModels ? 'Для моделей [вкл.]' : 'Для моделей') }}
           </button>
           <button
             type="button"
-            class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
+            class="text-sm px-3 py-1.5 rounded border border-[var(--tg-theme-section-separator-color)] bg-[var(--tg-theme-section-bg-color)] text-[var(--tg-theme-text-color)] disabled:opacity-50"
             :disabled="deletingId === s.id"
             @click="removeService(s.id)"
           >
