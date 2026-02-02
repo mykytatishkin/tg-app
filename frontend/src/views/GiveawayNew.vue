@@ -77,7 +77,7 @@ defaultDates();
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -88,7 +88,7 @@ defaultDates();
       <h1 class="text-2xl font-bold">Новый розыгрыш</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <form class="space-y-4" @submit.prevent="submit">
       <div>
@@ -97,7 +97,7 @@ defaultDates();
           id="giveaway-title"
           v-model="form.title"
           type="text"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="e.g. Free manicure"
         >
       </div>
@@ -107,7 +107,7 @@ defaultDates();
           id="giveaway-desc"
           v-model="form.description"
           rows="3"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="What participants need to do..."
         />
       </div>
@@ -117,7 +117,7 @@ defaultDates();
           id="giveaway-image"
           v-model="form.imageUrl"
           type="url"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="https://..."
         >
       </div>
@@ -127,7 +127,7 @@ defaultDates();
           id="giveaway-start"
           v-model="form.startAt"
           type="datetime-local"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
       <div>
@@ -136,7 +136,7 @@ defaultDates();
           id="giveaway-end"
           v-model="form.endAt"
           type="datetime-local"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
       <div>
@@ -146,13 +146,13 @@ defaultDates();
           v-model.number="form.winnerCount"
           type="number"
           min="1"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
       <div class="flex gap-2 pt-2">
         <button
           type="submit"
-          class="flex-1 py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          class="flex-1 py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
           :disabled="submitting"
         >
           {{ submitting ? 'Создаю…' : 'Создать' }}

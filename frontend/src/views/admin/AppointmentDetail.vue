@@ -157,13 +157,13 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Детали записи</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="appointment">
       <div
         class="space-y-4 rounded-xl p-4 mb-6"
-        :class="!appointment.serviceId ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
+        :class="!appointment.serviceId ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
       >
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Дата и время</span>
@@ -180,14 +180,14 @@ onMounted(load);
               {{ appointment.service?.name }}
               <span v-if="appointment.service?.price != null"> · {{ appointment.service.price }}+ €</span>
             </template>
-            <span v-else class="text-purple-600 font-medium">Для моделей</span>
+            <span v-else class="text-neutral-400 font-medium">Для моделей</span>
           </div>
         </div>
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Статус</span>
           <div
             class="inline-block px-2 py-0.5 rounded text-sm"
-            :class="appointment.status === 'cancelled' ? 'bg-red-600 text-white' : appointment.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
+            :class="appointment.status === 'cancelled' ? 'bg-neutral-800 text-neutral-300' : appointment.status === 'done' ? 'bg-neutral-500 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
           >
             {{ appointment.status === 'scheduled' ? 'Запланировано' : appointment.status === 'done' ? 'Завершено' : 'Отменено' }}
           </div>
@@ -203,7 +203,7 @@ onMounted(load);
           <button
             v-if="!editingDiscount"
             type="button"
-            class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-button-color,#2481cc)] text-white"
+            class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-button-color,#1a1a1a)] text-white"
             @click="startEditDiscount"
           >
             Изменить скидку
@@ -239,7 +239,7 @@ onMounted(load);
               </div>
             </template>
             <div class="flex gap-2 pt-2">
-              <button type="submit" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#2481cc)] text-white text-sm" :disabled="savingDiscount">
+              <button type="submit" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-white text-sm" :disabled="savingDiscount">
                 {{ savingDiscount ? 'Сохранение…' : 'Сохранить' }}
               </button>
               <button type="button" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e4e4e7)] text-sm" @click="cancelEditDiscount">
@@ -272,7 +272,7 @@ onMounted(load);
             <span v-else class="text-[var(--tg-theme-hint-color,#999)]">Не указана</span>
             <button
               type="button"
-              class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-button-color,#2481cc)] text-white"
+              class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-button-color,#1a1a1a)] text-white"
               @click="startEditFinalPrice"
             >
               {{ appointment.finalPrice != null ? 'Изменить' : 'Указать' }}
@@ -289,7 +289,7 @@ onMounted(load);
               class="w-28 px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]"
             >
             <span class="text-sm">€</span>
-            <button type="submit" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#2481cc)] text-white text-sm" :disabled="savingFinalPrice">
+            <button type="submit" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-white text-sm" :disabled="savingFinalPrice">
               {{ savingFinalPrice ? 'Сохранение…' : 'Сохранить' }}
             </button>
             <button type="button" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e4e4e7)] text-sm" @click="cancelEditFinalPrice">
@@ -312,7 +312,7 @@ onMounted(load);
               :href="appointment.referenceImageUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-block mt-2 text-sm text-[var(--tg-theme-link-color,#2481cc)] underline"
+              class="inline-block mt-2 text-sm text-[var(--tg-theme-link-color,#c0c0c0)] underline"
             >
               {{ imageError ? 'Открыть изображение' : 'Открыть в новой вкладке' }}
             </a>
@@ -323,7 +323,7 @@ onMounted(load);
       <div v-if="appointment.status === 'scheduled'" class="flex gap-2">
         <button
           type="button"
-          class="flex-1 py-2 rounded-lg bg-green-600 text-white disabled:opacity-50"
+          class="flex-1 py-2 rounded-lg bg-neutral-500 text-white disabled:opacity-50"
           :disabled="updatingId === appointment.id"
           @click="setStatus('done')"
         >
@@ -331,7 +331,7 @@ onMounted(load);
         </button>
         <button
           type="button"
-          class="flex-1 py-2 rounded-lg bg-red-600 text-white disabled:opacity-50"
+          class="flex-1 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
           :disabled="updatingId === appointment.id"
           @click="setStatus('cancelled')"
         >

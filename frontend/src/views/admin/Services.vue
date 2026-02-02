@@ -102,7 +102,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -113,12 +113,12 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Услуги</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div v-if="!showForm" class="mb-6">
       <button
         type="button"
-        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
         @click="openAddForm"
       >
         Добавить услугу
@@ -131,7 +131,7 @@ onMounted(load);
         <input
           v-model="form.name"
           type="text"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="Напр. Маникюр"
         >
       </div>
@@ -141,7 +141,7 @@ onMounted(load);
           v-model.number="form.durationMinutes"
           type="number"
           min="1"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
       <div>
@@ -151,7 +151,7 @@ onMounted(load);
           type="number"
           min="0"
           step="0.01"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="0"
         >
         <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минимум, отображается как «цена+ €».</p>
@@ -163,7 +163,7 @@ onMounted(load);
       <div class="flex gap-2">
         <button
           type="button"
-          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
           :disabled="submitting"
           @click="addService"
         >
@@ -186,21 +186,21 @@ onMounted(load);
         v-for="s in services"
         :key="s.id"
         class="p-4 rounded-xl flex items-center justify-between gap-3"
-        :class="s.forModels ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
+        :class="s.forModels ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
       >
         <div class="min-w-0">
           <div class="font-medium">{{ s.name }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.durationMinutes }} min
             <span v-if="s.price != null"> · {{ s.price }}+ €</span>
-            <span v-if="s.forModels" class="ml-1 text-purple-600 font-medium">· Для моделей</span>
+            <span v-if="s.forModels" class="ml-1 text-neutral-400 font-medium">· Для моделей</span>
           </div>
         </div>
         <div class="shrink-0 flex items-center gap-2">
           <button
             type="button"
             class="text-sm px-2 py-1 rounded disabled:opacity-50"
-            :class="s.forModels ? 'bg-purple-500 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
+            :class="s.forModels ? 'bg-neutral-600 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
             :disabled="togglingForModelsId === s.id"
             @click="toggleForModels(s)"
           >
@@ -208,7 +208,7 @@ onMounted(load);
           </button>
           <button
             type="button"
-            class="text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+            class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
             :disabled="deletingId === s.id"
             @click="removeService(s.id)"
           >

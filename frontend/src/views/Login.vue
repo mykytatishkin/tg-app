@@ -25,7 +25,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col items-center justify-center p-4 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen flex flex-col items-center justify-center p-4 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <h1 class="text-2xl font-bold mb-4">Nail Master CRM</h1>
 
     <div v-if="!isAvailable" class="text-center text-gray-500">
@@ -35,7 +35,7 @@ onMounted(async () => {
     <div v-else class="w-full max-w-sm space-y-4">
       <button
         v-if="!loading && !isAuthenticated"
-        class="w-full py-3 px-4 rounded-lg font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+        class="w-full py-3 px-4 rounded-lg font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
         @click="handleLogin"
       >
         Войти через Telegram
@@ -43,7 +43,7 @@ onMounted(async () => {
       <div v-else-if="loading" class="text-center py-4">
         <p>Вход…</p>
       </div>
-      <p v-if="error" class="text-red-500 text-sm">{{ error }}</p>
+      <p v-if="error" class="text-neutral-400 text-sm">{{ error }}</p>
     </div>
   </div>
 </template>

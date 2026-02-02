@@ -14,7 +14,7 @@ const error = ref(null);
 const confettiRunning = ref(true);
 
 function runConfetti() {
-  const colors = ['#3390ec', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#22b8cf'];
+  const colors = ['#fff', '#e8e8e8', '#c0c0c0', '#888', '#4a4a4a', '#1a1a1a'];
   const container = document.getElementById('confetti-container');
   if (!container) return;
   for (let i = 0; i < 60; i++) {
@@ -79,12 +79,12 @@ onMounted(() => {
         За день до записи (за 24 ч или меньше) мы пришлём напоминание вам и мастеру в чат с ботом.
       </p>
 
-      <p v-if="error" class="text-red-500 text-sm mb-4">{{ error }}</p>
+      <p v-if="error" class="text-neutral-400 text-sm mb-4">{{ error }}</p>
 
       <div class="flex flex-col gap-3">
         <button
           type="button"
-          class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
           :disabled="loading"
           @click="enableReminder"
         >

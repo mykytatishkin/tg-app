@@ -183,7 +183,7 @@ onMounted(load);
       <h1 class="text-2xl font-bold truncate flex-1">Розыгрыш</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="giveaway">
@@ -203,9 +203,9 @@ onMounted(load);
               v-if="isMasterOrAdmin"
               :class="[
                 'shrink-0 text-xs px-2 py-0.5 rounded',
-                giveaway.status === 'active' ? 'bg-green-100 text-green-800' : '',
-                giveaway.status === 'ended' ? 'bg-gray-200 text-gray-700' : '',
-                giveaway.status === 'draft' ? 'bg-amber-100 text-amber-800' : '',
+                giveaway.status === 'active' ? 'bg-neutral-500 text-white' : '',
+                giveaway.status === 'ended' ? 'bg-neutral-600 text-neutral-200' : '',
+                giveaway.status === 'draft' ? 'bg-neutral-700 text-neutral-300' : '',
               ]"
             >
               {{ statusLabel(giveaway.status) }}
@@ -245,7 +245,7 @@ onMounted(load);
         <template v-if="giveaway.status === 'draft'">
           <button
             type="button"
-            class="w-full py-3 rounded-xl font-medium bg-green-600 text-white"
+            class="w-full py-3 rounded-xl font-medium bg-neutral-500 text-white"
             @click="setStatus('active')"
           >
             Активировать розыгрыш
@@ -257,7 +257,7 @@ onMounted(load);
           </p>
           <button
             type="button"
-            class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+            class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
             :disabled="!canDraw || drawing"
             @click="draw"
           >
@@ -267,7 +267,7 @@ onMounted(load);
         <template v-if="giveaway.status === 'draft'">
           <button
             type="button"
-            class="w-full py-2 rounded-xl text-red-600 border border-red-600 disabled:opacity-50"
+            class="w-full py-2 rounded-xl text-neutral-400 border border-neutral-500 disabled:opacity-50"
             :disabled="deleting"
             @click="remove"
           >
@@ -278,10 +278,10 @@ onMounted(load);
 
       <!-- Client: participation block -->
       <div v-if="!isMasterOrAdmin" class="mb-6">
-        <p v-if="isParticipant && !isPendingVerification" class="text-sm text-green-600 font-medium">
+        <p v-if="isParticipant && !isPendingVerification" class="text-sm text-neutral-300 font-medium">
           Вы участвуете в розыгрыше.
         </p>
-        <p v-else-if="isPendingVerification" class="text-sm text-amber-600 font-medium">
+        <p v-else-if="isPendingVerification" class="text-sm text-neutral-400 font-medium">
           Вы подали заявку. Мастер проверит выполнение условий и тогда вы будете участвовать в жеребьёвке.
         </p>
         <template v-else-if="canParticipate">
@@ -290,7 +290,7 @@ onMounted(load);
           </p>
           <button
             type="button"
-            class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+            class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
             :disabled="participating"
             @click="participate"
           >
@@ -327,7 +327,7 @@ onMounted(load);
           <li
             v-for="w in winners"
             :key="w.id"
-            class="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm"
+            class="p-3 rounded-lg bg-neutral-700/50 border border-neutral-600 text-sm"
           >
             {{ w.user?.firstName ?? '' }} {{ w.user?.lastName ?? '' }}
             <span v-if="w.user?.username" class="text-[var(--tg-theme-hint-color,#999)]">@{{ w.user.username }}</span>

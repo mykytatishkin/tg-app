@@ -123,7 +123,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -134,12 +134,12 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Доступность</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div v-if="!showForm" class="mb-6 space-y-3">
       <button
         type="button"
-        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
         @click="openNewForm"
       >
         Добавить слот
@@ -159,19 +159,19 @@ onMounted(load);
       <input
         v-model="form.date"
         type="date"
-        class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+        class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
       >
       <div class="flex gap-2">
         <input
           v-model="form.startTime"
           type="time"
-          class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           @change="onFormStartTimeChange"
         >
         <input
           v-model="form.endTime"
           type="time"
-          class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
       <div>
@@ -182,7 +182,7 @@ onMounted(load);
           type="number"
           step="0.01"
           placeholder="−5 скидка, +10 доплата"
-          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
         <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минус — скидка, плюс — доплата. Пусто — без изменения цены.</p>
       </div>
@@ -193,7 +193,7 @@ onMounted(load);
       <div class="flex gap-2">
         <button
           type="button"
-          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
           :disabled="submitting"
           @click="addSlot"
         >
@@ -221,16 +221,16 @@ onMounted(load);
           <div class="font-medium">{{ s.date }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.startTime }} – {{ s.endTime }}
-            <span v-if="s.forModels" class="text-purple-600 font-medium">Для моделей</span>
-            <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-green-600' : 'text-amber-600'">
+            <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
+            <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
             </span>
-            <span v-if="!s.isAvailable" class="text-red-500"> (unavailable)</span>
+            <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
           </div>
         </div>
         <button
           type="button"
-          class="text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+          class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
           :disabled="deletingId === s.id"
           @click="removeSlot(s.id)"
         >

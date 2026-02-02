@@ -39,7 +39,7 @@ function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)]">
     <h1 class="text-2xl font-bold mb-2">
       Привет, {{ user?.firstName || 'друг' }}!
     </h1>
@@ -52,7 +52,7 @@ function handleLogout() {
         <button
           v-for="item in adminNavItems"
           :key="item.path"
-          class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)] text-left"
+          class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] text-left"
           @click="goTo(item.path)"
         >
           <span class="text-2xl">{{ item.icon }}</span>
@@ -63,7 +63,7 @@ function handleLogout() {
         <button
           v-for="item in userNavItems"
           :key="item.path"
-          class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)] text-left"
+          class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] text-left"
           @click="goTo(item.path)"
         >
           <span class="text-2xl">{{ item.icon }}</span>
@@ -72,7 +72,7 @@ function handleLogout() {
       </template>
     </div>
 
-    <div class="mt-8 pt-6 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+    <div class="mt-8 pt-6 border-t border-[var(--tg-theme-section-separator-color)]">
       <button
         type="button"
         class="w-full py-2 text-sm text-[var(--tg-theme-hint-color,#999)]"

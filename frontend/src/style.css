@@ -1,7 +1,8 @@
 @import 'tailwindcss';
 
+/* Чёрно-белая полуготическая тема — принудительно переопределяем тему Telegram (!important) */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Cinzel', Georgia, 'Times New Roman', serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -10,13 +11,29 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  color: var(--tg-theme-text-color, #000000);
+  /* Все переменные темы Telegram — ч/б, !important чтобы перебить inline-стили Telegram */
+  --tg-theme-bg-color: #0d0d0d !important;
+  --tg-theme-text-color: #e8e8e8 !important;
+  --tg-theme-hint-color: #888 !important;
+  --tg-theme-link-color: #c0c0c0 !important;
+  --tg-theme-button-color: #1a1a1a !important;
+  --tg-theme-button-text-color: #e8e8e8 !important;
+  --tg-theme-secondary-bg-color: #1a1a1a !important;
+  --tg-theme-section-bg-color: #2a2a2a !important;
+  --tg-theme-section-separator-color: #3a3a3a !important;
+  --tg-theme-accent-text-color: #fff !important;
+  --tg-theme-header-bg-color: #0d0d0d !important;
+  --tg-theme-section-header-text-color: #e8e8e8 !important;
+  --tg-theme-subtitle-text-color: #888 !important;
+  --tg-theme-destructive-text-color: #c0c0c0 !important;
+
+  color: var(--tg-theme-text-color);
   background-color: transparent;
 }
 
 a {
   font-weight: 500;
-  color: var(--tg-theme-link-color, #2481cc);
+  color: var(--tg-theme-link-color);
   text-decoration: inherit;
 }
 a:hover {
@@ -31,11 +48,11 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100%;
-  color: var(--tg-theme-text-color, #000000);
+  color: var(--tg-theme-text-color);
   position: relative;
 }
 
-/* Фон на отдельном слое — не скроллится, чёрный квадрат при скролле не появляется */
+/* Фон на отдельном слое — ч/б, без синего оттенка */
 body::before {
   content: '';
   position: fixed;
@@ -46,6 +63,7 @@ body::before {
   background-repeat: no-repeat;
   background-position: center center;
   background-size: cover;
+  filter: grayscale(1);
 }
 
 h1 {
@@ -59,14 +77,14 @@ h2 {
 }
 
 button {
-  border-radius: 8px;
-  border: none;
+  border-radius: 6px;
+  border: 1px solid var(--tg-theme-section-separator-color);
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: var(--tg-theme-button-color, #2481cc);
-  color: var(--tg-theme-button-text-color, #ffffff);
+  background-color: var(--tg-theme-button-color);
+  color: var(--tg-theme-button-text-color);
   cursor: pointer;
   transition: opacity 0.2s;
 }
@@ -75,7 +93,7 @@ button:hover {
 }
 button:focus,
 button:focus-visible {
-  outline: 2px solid var(--tg-theme-accent-text-color, #2481cc);
+  outline: 2px solid var(--tg-theme-accent-text-color);
 }
 button:disabled {
   opacity: 0.6;
@@ -83,17 +101,18 @@ button:disabled {
 }
 
 input, textarea {
-  background-color: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  color: var(--tg-theme-text-color, #000000);
-  border: 1px solid var(--tg-theme-section-separator-color, #e5e5e5);
-  border-radius: 8px;
+  background-color: var(--tg-theme-secondary-bg-color);
+  color: var(--tg-theme-text-color);
+  border: 1px solid var(--tg-theme-section-separator-color);
+  border-radius: 6px;
   padding: 0.5em 0.75em;
 }
 
 .card {
   padding: 1rem;
-  background-color: var(--tg-theme-secondary-bg-color, #f4f4f5);
-  border-radius: 12px;
+  background-color: var(--tg-theme-secondary-bg-color);
+  border: 1px solid var(--tg-theme-section-separator-color);
+  border-radius: 8px;
 }
 
 #app {

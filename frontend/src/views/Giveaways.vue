@@ -49,16 +49,16 @@ function statusLabel(status) {
 }
 
 function statusClass(status) {
-  if (status === 'active') return 'bg-green-100 text-green-800';
-  if (status === 'ended') return 'bg-gray-200 text-gray-700';
-  return 'bg-amber-100 text-amber-800';
+  if (status === 'active') return 'bg-neutral-500 text-white';
+  if (status === 'ended') return 'bg-neutral-600 text-neutral-200';
+  return 'bg-neutral-700 text-neutral-300';
 }
 
 onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -69,12 +69,12 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Розыгрыши</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div v-if="isMasterOrAdmin" class="mb-6">
       <button
         type="button"
-        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
         @click="goToCreate"
       >
         Создать розыгрыш

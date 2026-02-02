@@ -42,7 +42,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -53,7 +53,7 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Актуальные акции</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <section class="mb-8">
       <h2 class="text-lg font-semibold mb-3">Скидки и предложения</h2>
@@ -63,7 +63,7 @@ onMounted(load);
         </p>
         <button
           type="button"
-          class="w-full py-2.5 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+          class="w-full py-2.5 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
           @click="goToBook"
         >
           Записаться

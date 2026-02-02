@@ -82,7 +82,7 @@ watch(() => route.query.showAll, (val) => {
       <h1 class="text-2xl font-bold">Записи</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <label class="flex items-center gap-2 mb-4 cursor-pointer">
       <input
@@ -101,7 +101,7 @@ watch(() => route.query.showAll, (val) => {
         v-for="a in appointments"
         :key="a.id"
         class="p-4 rounded-xl"
-        :class="!a.serviceId ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
+        :class="!a.serviceId ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
       >
         <button
           type="button"
@@ -116,15 +116,15 @@ watch(() => route.query.showAll, (val) => {
         <div class="flex items-center gap-2 mt-2 flex-wrap">
           <span
             v-if="!a.serviceId"
-            class="text-sm px-2 py-0.5 rounded bg-purple-500 text-white"
+            class="text-sm px-2 py-0.5 rounded bg-neutral-600 text-white"
           >Для моделей</span>
           <span
             v-if="a.withDiscount"
-            class="text-sm px-2 py-0.5 rounded bg-amber-500 text-white"
+            class="text-sm px-2 py-0.5 rounded bg-neutral-500 text-white"
           >Со скидкой</span>
           <span
             class="text-sm capitalize px-2 py-0.5 rounded"
-            :class="a.status === 'cancelled' ? 'bg-red-600 text-white' : a.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
+            :class="a.status === 'cancelled' ? 'bg-neutral-800 text-neutral-300' : a.status === 'done' ? 'bg-neutral-500 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
           >{{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>
           <button
             type="button"
@@ -136,7 +136,7 @@ watch(() => route.query.showAll, (val) => {
           <template v-if="a.status === 'scheduled'">
             <button
               type="button"
-              class="text-sm px-2 py-1 rounded bg-green-600 text-white disabled:opacity-50"
+              class="text-sm px-2 py-1 rounded bg-neutral-500 text-white disabled:opacity-50"
               :disabled="updatingId === a.id"
               @click.stop="setStatus(a.id, 'done')"
             >
@@ -144,7 +144,7 @@ watch(() => route.query.showAll, (val) => {
             </button>
             <button
               type="button"
-              class="text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+              class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
               :disabled="updatingId === a.id"
               @click.stop="setStatus(a.id, 'cancelled')"
             >

@@ -235,7 +235,7 @@ watch(selectedServiceId, () => {
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#e8e8e8)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -246,7 +246,7 @@ watch(selectedServiceId, () => {
       <h1 class="text-2xl font-bold">Записаться</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div v-if="loadingMasters" class="text-[var(--tg-theme-hint-color,#999)] mb-4">Загрузка…</div>
 
@@ -262,7 +262,7 @@ watch(selectedServiceId, () => {
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="!forModelsMode ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              :class="!forModelsMode ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
               @click="forModelsMode = false; onBookingModeChange()"
             >
               Услуга
@@ -270,7 +270,7 @@ watch(selectedServiceId, () => {
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="forModelsMode ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              :class="forModelsMode ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
               @click="forModelsMode = true; onBookingModeChange()"
             >
               Для моделей
@@ -316,7 +316,7 @@ watch(selectedServiceId, () => {
             v-else
             id="book-model-service"
             v-model="selectedServiceId"
-            class="w-full p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700"
+            class="w-full p-3 rounded-lg bg-neutral-700/50 border border-neutral-600"
           >
             <option value="">Выберите услугу для моделей</option>
             <option v-for="s in modelServices" :key="s.id" :value="s.id">
@@ -345,14 +345,14 @@ watch(selectedServiceId, () => {
                 type="button"
                 class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
                 :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
-                  ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]'
+                  ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
                   : forModelsMode
-                    ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700'
+                    ? 'bg-neutral-700/50 border border-neutral-600'
                     : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
                 @click="selectSlot(slot)"
               >
                 {{ formatSlotLabel(slot) }}
-                <span v-if="forModelsMode" class="ml-1 text-purple-600 font-medium">Для моделей</span>
+                <span v-if="forModelsMode" class="ml-1 text-neutral-400 font-medium">Для моделей</span>
               </button>
             </li>
           </ul>
@@ -364,7 +364,7 @@ watch(selectedServiceId, () => {
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="!designByReference ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              :class="!designByReference ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
               @click="designByReference = false"
             >
               Дизайн от мастера
@@ -372,7 +372,7 @@ watch(selectedServiceId, () => {
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="designByReference ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              :class="designByReference ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
               @click="designByReference = true"
             >
               Дизайн по референсу
@@ -405,7 +405,7 @@ watch(selectedServiceId, () => {
       </div>
 
       <button
-        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
         :disabled="!selectedMasterId || (!forModelsMode && !selectedServiceId) || !selectedSlot || submitting"
         @click="submit"
       >

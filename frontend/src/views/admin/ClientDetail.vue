@@ -88,7 +88,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
+  <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]">
     <div class="flex items-center gap-3 mb-6">
       <button
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
@@ -99,7 +99,7 @@ onMounted(load);
       <h1 class="text-2xl font-bold truncate flex-1">Клиент</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="client">
@@ -115,7 +115,7 @@ onMounted(load);
           <button
             v-if="!editing"
             type="button"
-            class="shrink-0 px-3 py-1.5 rounded-lg text-sm bg-[var(--tg-theme-button-color,#2481cc)] text-[var(--tg-theme-button-text-color,#fff)]"
+            class="shrink-0 px-3 py-1.5 rounded-lg text-sm bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
             @click="startEdit"
           >
             Редактировать
@@ -126,26 +126,26 @@ onMounted(load);
       <form v-if="editing" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6 space-y-3" @submit.prevent="save">
         <div>
           <label for="edit-name" class="block text-sm font-medium mb-1">Имя</label>
-          <input id="edit-name" v-model="editForm.name" type="text" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]" required />
+          <input id="edit-name" v-model="editForm.name" type="text" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" required />
         </div>
         <div>
           <label for="edit-phone" class="block text-sm font-medium mb-1">Телефон</label>
-          <input id="edit-phone" v-model="editForm.phone" type="text" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]" />
+          <input id="edit-phone" v-model="editForm.phone" type="text" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" />
         </div>
         <div>
           <label for="edit-username" class="block text-sm font-medium mb-1">Username (Telegram)</label>
-          <input id="edit-username" v-model="editForm.username" type="text" placeholder="@username" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]" />
+          <input id="edit-username" v-model="editForm.username" type="text" placeholder="@username" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" />
         </div>
         <div>
           <label for="edit-masterNickname" class="block text-sm font-medium mb-1">Свой ник (видит только мастер)</label>
-          <input id="edit-masterNickname" v-model="editForm.masterNickname" type="text" placeholder="Например: Маша из инсты" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]" />
+          <input id="edit-masterNickname" v-model="editForm.masterNickname" type="text" placeholder="Например: Маша из инсты" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" />
         </div>
         <div>
           <label for="edit-notes" class="block text-sm font-medium mb-1">Заметки</label>
-          <textarea id="edit-notes" v-model="editForm.notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]"></textarea>
+          <textarea id="edit-notes" v-model="editForm.notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]"></textarea>
         </div>
         <div class="flex gap-2">
-          <button type="submit" class="px-4 py-2 rounded-lg bg-[var(--tg-theme-button-color,#2481cc)] text-[var(--tg-theme-button-text-color,#fff)]" :disabled="saving">
+          <button type="submit" class="px-4 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]" :disabled="saving">
             {{ saving ? 'Сохранение…' : 'Сохранить' }}
           </button>
           <button type="button" class="px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e4e4e7)]" @click="cancelEdit">

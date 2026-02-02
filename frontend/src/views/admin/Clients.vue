@@ -53,7 +53,7 @@ onMounted(load);
       <h1 class="text-2xl font-bold">Клиенты</h1>
     </div>
 
-    <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+    <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else class="space-y-3">
