@@ -30,6 +30,10 @@ export class GiveawayParticipant {
   @JoinColumn({ name: 'userId' })
   user: User;
 
+  /** Manual verification that participant fulfilled conditions (e.g. follow, share). */
+  @Column({ type: 'boolean', default: false })
+  conditionsVerified: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

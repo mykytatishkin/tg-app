@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
+import { ClientRemindersService } from './client-reminders.service';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
@@ -15,6 +16,6 @@ import { BotModule } from '../bot/bot.module';
     BotModule,
   ],
   controllers: [CrmController],
-  providers: [CrmService],
+  providers: [CrmService, ClientRemindersService],
 })
 export class CrmModule {}

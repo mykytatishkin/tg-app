@@ -38,6 +38,11 @@ export class CrmController {
     return this.crmService.createClient(req.user, dto);
   }
 
+  @Get('stats')
+  getStats(@Request() req: { user: User }) {
+    return this.crmService.getStats(req.user);
+  }
+
   @Get('clients/:id')
   getClient(@Request() req: { user: User }, @Param('id') id: string) {
     return this.crmService.getClient(req.user, id);

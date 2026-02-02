@@ -36,15 +36,22 @@ export class GiveawaysService {
     return master.id;
   }
 
+  private async getMasterIdOrNull(): Promise<string | null> {
+    const master = await this.userRepo.findOne({ where: { isMaster: true } });
+    return master?.id ?? null;
+  }
+
   async getGiveaways(user: User, forMaster = false) {
-    const masterId = await this.getMasterId(user);
     if (forMaster || user.isMaster || user.isAdmin) {
+      const masterId = await this.getMasterId(user);
       return this.giveawayRepo.find({
         where: { masterId },
         order: { createdAt: 'DESC' },
         relations: ['master'],
       });
     }
+    const masterId = await this.getMasterIdOrNull();
+    if (!masterId) return [];
     return this.giveawayRepo.find({
       where: { status: GiveawayStatus.ACTIVE, masterId },
       order: { endAt: 'ASC' },
@@ -71,7 +78,7 @@ export class GiveawaysService {
       relations: ['master', 'participants', 'participants.user', 'winners', 'winners.user'],
     });
     if (!giveaway) throw new NotFoundException('Giveaway not found');
-    const masterId = await this.getMasterId(user);
+    const masterId = user.isMaster ? user.id : (await this.getMasterIdOrNull()) ?? '';
     const isOwner = giveaway.masterId === masterId;
     const isMasterOrAdmin = user.isMaster || user.isAdmin;
     if (!isOwner && !isMasterOrAdmin) {
@@ -111,7 +118,12 @@ export class GiveawaysService {
       where: { giveawayId, userId: user.id },
     });
     if (existing) return { message: 'Already participating', participant: existing };
-    const participant = this.participantRepo.create({ giveawayId, userId: user.id });
+    const hasConditions = giveaway.conditions != null && giveaway.conditions.length > 0;
+    const participant = this.participantRepo.create({
+      giveawayId,
+      userId: user.id,
+      conditionsVerified: !hasConditions,
+    });
     return this.participantRepo.save(participant);
   }
 
@@ -130,12 +142,15 @@ export class GiveawaysService {
       return { message: 'Already drawn', winners };
     }
     const count = dto?.winnerCount ?? giveaway.winnerCount;
-    const participants = await this.participantRepo.find({
+    const allParticipants = await this.participantRepo.find({
       where: { giveawayId },
       relations: ['user'],
     });
+    const participants = allParticipants.filter((p) => p.conditionsVerified);
     if (participants.length === 0) {
-      throw new BadRequestException('No participants to draw from');
+      throw new BadRequestException(
+        'No participants with verified conditions to draw from. Verify participants first.',
+      );
     }
     const shuffled = [...participants].sort(() => Math.random() - 0.5);
     const toSelect = Math.min(count, shuffled.length);
@@ -176,6 +191,20 @@ export class GiveawaysService {
       relations: ['user'],
       order: { createdAt: 'ASC' },
     });
+  }
+
+  /** Master manually marks that participant has fulfilled conditions. */
+  async verifyParticipant(user: User, giveawayId: string, participantId: string) {
+    const masterId = await this.getMasterId(user);
+    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId, masterId } });
+    if (!giveaway) throw new ForbiddenException('Giveaway not found');
+    const participant = await this.participantRepo.findOne({
+      where: { id: participantId, giveawayId },
+      relations: ['user'],
+    });
+    if (!participant) throw new NotFoundException('Participant not found');
+    participant.conditionsVerified = true;
+    return this.participantRepo.save(participant);
   }
 
   async getWinners(giveawayId: string) {

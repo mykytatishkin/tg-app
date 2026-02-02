@@ -31,6 +31,10 @@ export class Client {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /** Last time we sent "2 weeks since last visit" reminder (to avoid repeat spam). */
+  @Column({ type: 'timestamp', nullable: true })
+  lastReminderSentAt: Date | null;
+
   @Column({ type: 'varchar' })
   masterId: string;
 

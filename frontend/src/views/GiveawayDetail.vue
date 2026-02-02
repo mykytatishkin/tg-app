@@ -16,6 +16,7 @@ const error = ref(null);
 const participating = ref(false);
 const drawing = ref(false);
 const deleting = ref(false);
+const verifyingId = ref(null);
 
 const id = computed(() => route.params.id);
 
@@ -40,10 +41,17 @@ const canParticipate = computed(() => {
 
 const participants = computed(() => giveaway.value?.participants ?? []);
 const winners = computed(() => giveaway.value?.winners ?? []);
+const verifiedCount = computed(() => participants.value.filter((p) => p.conditionsVerified).length);
+
+const myParticipant = computed(() => {
+  if (!user.value?.id || !participants.value.length) return null;
+  return participants.value.find((p) => p.userId === user.value.id) ?? null;
+});
+const isPendingVerification = computed(() => myParticipant.value && !myParticipant.value.conditionsVerified);
 
 const canDraw = computed(() => {
   const g = giveaway.value;
-  return isMasterOrAdmin.value && g?.status === 'active' && participants.value.length > 0;
+  return isMasterOrAdmin.value && g?.status === 'active' && verifiedCount.value > 0;
 });
 
 async function load() {
@@ -99,6 +107,20 @@ async function draw() {
   }
 }
 
+async function verifyParticipant(participantId) {
+  verifyingId.value = participantId;
+  error.value = null;
+  try {
+    await api.put(`/giveaways/${id.value}/participants/${participantId}/verify`);
+    hapticFeedback?.('light');
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    verifyingId.value = null;
+  }
+}
+
 async function remove() {
   if (!isMasterOrAdmin.value || !confirm('Delete this giveaway?')) return;
   deleting.value = true;
@@ -124,6 +146,28 @@ function statusLabel(s) {
   return map[s] ?? s;
 }
 
+function formatDateRange(start, end) {
+  if (!start || !end) return '';
+  const s = new Date(start);
+  const e = new Date(end);
+  return `${s.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} – ${e.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+}
+
+function clientStatusMessage(g) {
+  if (!g || g.status !== 'active') return null;
+  const now = new Date();
+  const start = g.startAt ? new Date(g.startAt) : null;
+  const end = g.endAt ? new Date(g.endAt) : null;
+  if (start && now < start) return 'Участие откроется с начала периода розыгрыша.';
+  if (end && now > end) return 'Розыгрыш уже завершён.';
+  return null;
+}
+
+function conditionsText(conditions) {
+  if (!conditions?.length) return null;
+  return conditions.map((c) => (c.value ? `${c.type}: ${c.value}` : c.type)).join(', ');
+}
+
 onMounted(load);
 </script>
 
@@ -143,6 +187,7 @@ onMounted(load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
 
     <template v-else-if="giveaway">
+      <!-- Card: for client show prize / condition / period; for master same + status -->
       <div class="rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-4">
         <img
           v-if="giveaway.imageUrl"
@@ -169,19 +214,29 @@ onMounted(load);
           <p v-if="giveaway.description" class="text-sm text-[var(--tg-theme-hint-color,#999)] mt-2 whitespace-pre-wrap">
             {{ giveaway.description }}
           </p>
-          <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
-            {{ giveaway.startAt ? new Date(giveaway.startAt).toLocaleString() : '' }}
-            –
-            {{ giveaway.endAt ? new Date(giveaway.endAt).toLocaleString() : '' }}
-          </div>
-          <div v-if="giveaway.conditions?.length" class="mt-3 text-sm">
-            <span class="font-medium">Conditions:</span>
-            <ul class="list-disc list-inside mt-1 text-[var(--tg-theme-hint-color,#999)]">
-              <li v-for="(c, i) in giveaway.conditions" :key="i">
-                {{ c.type }}{{ c.value ? `: ${c.value}` : '' }}
-              </li>
-            </ul>
-          </div>
+          <template v-if="!isMasterOrAdmin">
+            <p v-if="conditionsText(giveaway.conditions)" class="text-sm mt-2 text-[var(--tg-theme-text-color)]">
+              {{ conditionsText(giveaway.conditions) }}
+            </p>
+            <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
+              {{ formatDateRange(giveaway.startAt, giveaway.endAt) }}
+            </p>
+          </template>
+          <template v-else>
+            <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
+              {{ giveaway.startAt ? new Date(giveaway.startAt).toLocaleString() : '' }}
+              –
+              {{ giveaway.endAt ? new Date(giveaway.endAt).toLocaleString() : '' }}
+            </div>
+            <div v-if="giveaway.conditions?.length" class="mt-3 text-sm">
+              <span class="font-medium">Conditions:</span>
+              <ul class="list-disc list-inside mt-1 text-[var(--tg-theme-hint-color,#999)]">
+                <li v-for="(c, i) in giveaway.conditions" :key="i">
+                  {{ c.type }}{{ c.value ? `: ${c.value}` : '' }}
+                </li>
+              </ul>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -198,7 +253,7 @@ onMounted(load);
         </template>
         <template v-else-if="giveaway.status === 'active'">
           <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ participants.length }} participant(s)
+            {{ verifiedCount }} verified / {{ participants.length }} participant(s)
           </p>
           <button
             type="button"
@@ -221,22 +276,32 @@ onMounted(load);
         </template>
       </div>
 
-      <!-- Participant actions -->
+      <!-- Client: participation block -->
       <div v-if="!isMasterOrAdmin" class="mb-6">
-        <p v-if="isParticipant" class="text-sm text-green-600 font-medium">
-          You are participating.
+        <p v-if="isParticipant && !isPendingVerification" class="text-sm text-green-600 font-medium">
+          Вы участвуете в розыгрыше.
         </p>
-        <button
-          v-else-if="canParticipate"
-          type="button"
-          class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
-          :disabled="participating"
-          @click="participate"
-        >
-          {{ participating ? 'Joining…' : 'Participate' }}
-        </button>
-        <p v-else-if="giveaway.status === 'active'" class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-          Outside participation period or already ended.
+        <p v-else-if="isPendingVerification" class="text-sm text-amber-600 font-medium">
+          Вы подали заявку. Мастер проверит выполнение условий и тогда вы будете участвовать в жеребьёвке.
+        </p>
+        <template v-else-if="canParticipate">
+          <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
+            Выполните условия розыгрыша, затем нажмите «Участвовать». Мастер вручную проверит выполнение.
+          </p>
+          <button
+            type="button"
+            class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+            :disabled="participating"
+            @click="participate"
+          >
+            {{ participating ? 'Отправляем…' : 'Участвовать' }}
+          </button>
+        </template>
+        <p v-else-if="clientStatusMessage(giveaway)" class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+          {{ clientStatusMessage(giveaway) }}
+        </p>
+        <p v-else-if="giveaway.status === 'ended'" class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+          Розыгрыш завершён. Победители указаны ниже.
         </p>
       </div>
 
@@ -255,9 +320,9 @@ onMounted(load);
         </ul>
       </div>
 
-      <!-- Winners -->
+      <!-- Winners (client + master) -->
       <div v-if="giveaway.status === 'ended' && winners.length > 0" class="mb-6">
-        <h3 class="text-lg font-medium mb-2">Winners</h3>
+        <h3 class="text-lg font-medium mb-2">{{ isMasterOrAdmin ? 'Winners' : 'Победители' }}</h3>
         <ul class="space-y-2">
           <li
             v-for="w in winners"

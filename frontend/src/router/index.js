@@ -32,9 +32,21 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/admin/stats',
+    name: 'AdminStats',
+    component: () => import('../views/admin/Stats.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
     path: '/admin/clients',
     name: 'AdminClients',
     component: () => import('../views/admin/Clients.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
+    path: '/admin/clients/:id',
+    name: 'AdminClientDetail',
+    component: () => import('../views/admin/ClientDetail.vue'),
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {

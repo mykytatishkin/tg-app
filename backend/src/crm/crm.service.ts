@@ -41,9 +41,28 @@ export class CrmService {
 
   async getClients(user: User) {
     const masterId = await this.getMasterId(user);
-    return this.clientRepo.find({
+    const clients = await this.clientRepo.find({
       where: { masterId },
       order: { name: 'ASC' },
+      relations: ['appointments'],
+    });
+    return clients.map((c) => {
+      const doneOrScheduled = (c.appointments || []).filter(
+        (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
+      );
+      const lastVisit =
+        doneOrScheduled.length > 0
+          ? doneOrScheduled.reduce((max, a) => {
+              const d = new Date(`${a.date}T${a.startTime}`);
+              return d > max ? d : max;
+            }, new Date(0))
+          : null;
+      const { appointments: _, ...rest } = c;
+      return {
+        ...rest,
+        visitCount: doneOrScheduled.length,
+        lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
+      };
     });
   }
 
@@ -57,10 +76,45 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     const client = await this.clientRepo.findOne({
       where: { id, masterId },
-      relations: ['appointments'],
+      relations: ['appointments', 'appointments.service'],
     });
     if (!client) throw new ForbiddenException('Client not found');
-    return client;
+    const doneOrScheduled = (client.appointments || []).filter(
+      (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
+    );
+    const byServiceMap = new Map<string, { serviceId: string; serviceName: string; count: number }>();
+    for (const a of doneOrScheduled) {
+      const sid = a.serviceId;
+      const name = (a as any).service?.name ?? 'Service';
+      if (!byServiceMap.has(sid)) byServiceMap.set(sid, { serviceId: sid, serviceName: name, count: 0 });
+      byServiceMap.get(sid)!.count += 1;
+    }
+    const lastVisit =
+      doneOrScheduled.length > 0
+        ? doneOrScheduled.reduce((max, a) => {
+            const d = new Date(`${a.date}T${a.startTime}`);
+            return d > max ? d : max;
+          }, new Date(0))
+        : null;
+    const sorted = [...doneOrScheduled].sort((a, b) => {
+      const da = new Date(`${a.date}T${a.startTime}`);
+      const db = new Date(`${b.date}T${b.startTime}`);
+      return db.getTime() - da.getTime();
+    });
+    const stats = {
+      totalVisits: doneOrScheduled.length,
+      lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
+      byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
+    };
+    const recentAppointments = sorted.slice(0, 30).map((a) => ({
+      id: a.id,
+      date: a.date,
+      startTime: a.startTime,
+      status: a.status,
+      serviceName: (a as any).service?.name ?? null,
+    }));
+    const { appointments: _, ...rest } = client;
+    return { ...rest, stats, recentAppointments };
   }
 
   async updateClient(user: User, id: string, dto: UpdateClientDto) {
@@ -212,5 +266,31 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     const result = await this.appointmentRepo.delete({ id, masterId });
     if (result.affected === 0) throw new ForbiddenException('Appointment not found');
+  }
+
+  /** Statistics: services with booking count, total appointments, clients count. */
+  async getStats(user: User) {
+    const masterId = await this.getMasterId(user);
+    const appointments = await this.appointmentRepo.find({
+      where: { masterId },
+      relations: ['service'],
+    });
+    const doneOrScheduled = appointments.filter(
+      (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
+    );
+    const byServiceMap = new Map<string, { serviceId: string; serviceName: string; count: number }>();
+    for (const a of doneOrScheduled) {
+      const sid = a.serviceId;
+      const name = (a as any).service?.name ?? 'Service';
+      if (!byServiceMap.has(sid)) byServiceMap.set(sid, { serviceId: sid, serviceName: name, count: 0 });
+      byServiceMap.get(sid)!.count += 1;
+    }
+    const clientIds = new Set(doneOrScheduled.map((a) => a.clientId));
+    const clientsCount = await this.clientRepo.count({ where: { masterId } });
+    return {
+      totalAppointments: doneOrScheduled.length,
+      totalClients: clientsCount,
+      byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
+    };
   }
 }

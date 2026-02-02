@@ -1,0 +1,69 @@
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Client } from './entities/client.entity';
+import { Appointment, AppointmentStatus } from './entities/appointment.entity';
+import { BotService } from '../bot/bot.service';
+
+const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
+const DAYS_AFTER_VISIT = 14;
+
+@Injectable()
+export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+
+  constructor(
+    @InjectRepository(Client)
+    private clientRepo: Repository<Client>,
+    @InjectRepository(Appointment)
+    private appointmentRepo: Repository<Appointment>,
+    private botService: BotService,
+  ) {}
+
+  onModuleInit() {
+    this.sendDueReminders().catch((err) => console.error('ClientRemindersService init error:', err));
+    this.intervalId = setInterval(() => {
+      this.sendDueReminders().catch((err) => console.error('ClientRemindersService interval error:', err));
+    }, INTERVAL_MS);
+  }
+
+  onModuleDestroy() {
+    if (this.intervalId) clearInterval(this.intervalId);
+  }
+
+  private async sendDueReminders() {
+    const clients = await this.clientRepo.find({
+      where: {},
+      select: ['id', 'name', 'telegramId', 'masterId', 'lastReminderSentAt'],
+    });
+    const now = new Date();
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - DAYS_AFTER_VISIT);
+    cutoff.setHours(0, 0, 0, 0);
+
+    for (const client of clients) {
+      if (!client.telegramId?.trim()) continue;
+
+      const lastDone = await this.appointmentRepo
+        .createQueryBuilder('a')
+        .select('a.date', 'date')
+        .addSelect('a.startTime', 'startTime')
+        .where('a.clientId = :clientId', { clientId: client.id })
+        .andWhere('a.status = :status', { status: AppointmentStatus.DONE })
+        .orderBy('a.date', 'DESC')
+        .addOrderBy('a.startTime', 'DESC')
+        .limit(1)
+        .getRawOne();
+
+      if (!lastDone) continue;
+      const lastVisitDate = new Date(`${lastDone.date}T${lastDone.startTime}`);
+      if (lastVisitDate > cutoff) continue;
+
+      if (client.lastReminderSentAt && client.lastReminderSentAt >= lastVisitDate) continue;
+
+      const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру. Ждём вас!`;
+      await this.botService.sendMessage(client.telegramId.trim(), text);
+      await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
+    }
+  }
+}

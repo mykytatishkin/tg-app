@@ -11,11 +11,12 @@ const { hapticFeedback } = useTelegramWebApp();
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
 
 const adminNavItems = [
-  { path: '/admin/clients', label: 'Clients', icon: '👥' },
-  { path: '/admin/services', label: 'Services', icon: '💅' },
-  { path: '/admin/appointments', label: 'Appointments', icon: '📅' },
-  { path: '/admin/availability', label: 'Availability', icon: '🕐' },
-  { path: '/giveaways', label: 'Giveaways', icon: '🎁' },
+  { path: '/admin/clients', label: 'Клиенты', icon: '👥' },
+  { path: '/admin/stats', label: 'Статистика', icon: '📊' },
+  { path: '/admin/services', label: 'Услуги', icon: '💅' },
+  { path: '/admin/appointments', label: 'Записи', icon: '📅' },
+  { path: '/admin/availability', label: 'Доступность', icon: '🕐' },
+  { path: '/giveaways', label: 'Розыгрыши', icon: '🎁' },
 ];
 
 const userNavItems = [

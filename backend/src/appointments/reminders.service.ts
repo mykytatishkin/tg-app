@@ -18,11 +18,21 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.intervalId = setInterval(() => this.sendDueReminders(), INTERVAL_MS);
+    this.sendDueReminders().catch((err) => console.error('RemindersService init run error:', err));
+    this.intervalId = setInterval(() => {
+      this.sendDueReminders().catch((err) => console.error('RemindersService interval error:', err));
+    }, INTERVAL_MS);
   }
 
   onModuleDestroy() {
     if (this.intervalId) clearInterval(this.intervalId);
+  }
+
+  private toAppointmentDateTime(date: string | Date, startTime: string): Date {
+    const dateStr = typeof date === 'string' ? date : (date as Date).toISOString().slice(0, 10);
+    const timeStr = String(startTime ?? '').trim();
+    const timeNormalized = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+    return new Date(`${dateStr}T${timeNormalized}`);
   }
 
   private async sendDueReminders() {
@@ -39,17 +49,17 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     });
 
     for (const a of appointments) {
-      const appointmentDateTime = new Date(`${a.date}T${a.startTime}`);
-      // Send if appointment is in the past OR within next 24h (even if time has passed, still send reminder)
+      const appointmentDateTime = this.toAppointmentDateTime(a.date, a.startTime);
+      if (appointmentDateTime <= now) continue;
       if (appointmentDateTime > windowEnd) continue;
 
-      const dateTimeStr = `${a.date} ${a.startTime}`;
+      const dateStr = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
+      const dateTimeStr = `${dateStr} ${a.startTime}`;
       const serviceName = a.service?.name ?? '';
-
       const clientName = a.client?.name ?? 'Client';
       const masterName = a.master ? `${a.master.firstName} ${a.master.lastName || ''}`.trim() : 'Master';
-      const clientTgId = a.client?.telegramId;
-      const masterTgId = a.master?.telegramId;
+      const clientTgId = a.client?.telegramId?.trim() || null;
+      const masterTgId = a.master?.telegramId?.trim() || null;
 
       if (clientTgId) {
         const linkToMaster = masterTgId

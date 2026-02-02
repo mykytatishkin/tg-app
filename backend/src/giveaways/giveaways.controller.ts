@@ -44,6 +44,16 @@ export class GiveawaysController {
     return this.giveawaysService.getParticipants(req.user, id);
   }
 
+  @Put(':id/participants/:participantId/verify')
+  @UseGuards(MasterOrAdminGuard)
+  verifyParticipant(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Param('participantId') participantId: string,
+  ) {
+    return this.giveawaysService.verifyParticipant(req.user, id, participantId);
+  }
+
   @Get(':id/winners')
   getWinners(@Param('id') id: string) {
     return this.giveawaysService.getWinners(id);
