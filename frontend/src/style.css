@@ -14,7 +14,7 @@
   /* Все переменные темы Telegram — ч/б, !important чтобы перебить inline-стили Telegram */
   --tg-theme-bg-color: #0d0d0d !important;
   --tg-theme-text-color: #e8e8e8 !important;
-  --tg-theme-hint-color: #888 !important;
+  --tg-theme-hint-color: #b8b8b8 !important;
   --tg-theme-link-color: #c0c0c0 !important;
   --tg-theme-button-color: #1a1a1a !important;
   --tg-theme-button-text-color: #e8e8e8 !important;
@@ -24,7 +24,7 @@
   --tg-theme-accent-text-color: #fff !important;
   --tg-theme-header-bg-color: #0d0d0d !important;
   --tg-theme-section-header-text-color: #e8e8e8 !important;
-  --tg-theme-subtitle-text-color: #888 !important;
+  --tg-theme-subtitle-text-color: #b8b8b8 !important;
   --tg-theme-destructive-text-color: #c0c0c0 !important;
 
   color: var(--tg-theme-text-color);

@@ -135,6 +135,9 @@ onMounted(load);
     </div>
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
+    <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-4">
+      Клиенты видят слоты на ближайшие 60 дней — добавляйте слоты в этом диапазоне.
+    </p>
 
     <div v-if="!showForm" class="mb-6 space-y-3">
       <button
@@ -159,6 +162,8 @@ onMounted(load);
       <input
         v-model="form.date"
         type="date"
+        :min="new Date().toISOString().slice(0, 10)"
+        :max="(() => { const d = new Date(); d.setDate(d.getDate() + 60); return d.toISOString().slice(0, 10); })()"
         class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
       >
       <div class="flex gap-2">

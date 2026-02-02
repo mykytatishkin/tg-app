@@ -231,13 +231,19 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.bot?.stop();
   }
 
-  /** Send a text message to a user by their Telegram ID (chat_id). */
-  async sendMessage(chatId: string, text: string): Promise<void> {
-    if (!this.bot) return;
+  /** Send a text message to a user by their Telegram ID (chat_id). Returns true if sent. */
+  async sendMessage(chatId: string, text: string): Promise<boolean> {
+    if (!this.bot) return false;
     try {
       await this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' });
-    } catch (err) {
+      return true;
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '';
       console.error('Bot sendMessage error:', err);
+      if (msg?.includes("can't initiate") || msg?.includes('blocked') || msg?.includes('deactivated')) {
+        console.warn(`User ${chatId} must start the bot first (send /start in chat with the bot).`);
+      }
+      return false;
     }
   }
 
@@ -246,8 +252,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     chatId: string,
     appointmentId: string,
     drinkOptions: string[],
-  ): Promise<void> {
-    if (!this.bot || !drinkOptions.length) return;
+  ): Promise<boolean> {
+    if (!this.bot || !drinkOptions.length) return false;
     try {
       const rows = drinkOptions.map((label, idx) => [
         Markup.button.callback(label, `${DRINK_CB_PREFIX}${appointmentId}|${idx}`),
@@ -255,8 +261,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       await this.bot.telegram.sendMessage(chatId, 'У вас скоро сеанс, желаете что-то выпить?', {
         reply_markup: { inline_keyboard: rows },
       });
+      return true;
     } catch (err) {
       console.error('Bot sendDrinkReminderToClient error:', err);
+      return false;
     }
   }
 
@@ -266,8 +274,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     text: string,
     buttonLabel: string,
     webAppUrl: string,
-  ): Promise<void> {
-    if (!this.bot) return;
+  ): Promise<boolean> {
+    if (!this.bot) return false;
     try {
       await this.bot.telegram.sendMessage(chatId, text, {
         parse_mode: 'HTML',
@@ -275,8 +283,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
           inline_keyboard: [[{ text: buttonLabel, web_app: { url: webAppUrl } }]],
         },
       });
+      return true;
     } catch (err) {
       console.error('Bot sendMessageWithWebAppButton error:', err);
+      return false;
     }
   }
 }

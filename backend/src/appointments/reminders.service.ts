@@ -76,23 +76,51 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const clientTgId = a.client?.telegramId?.trim() || null;
       const masterTgId = a.master?.telegramId?.trim() || null;
 
+      let clientReminderOk = !clientTgId;
+      let masterReminderOk = !masterTgId;
+      let preSessionOk = false;
+
       if (clientTgId) {
         const linkToMaster = masterTgId
           ? `<a href="tg://user?id=${masterTgId}">${escapeHtml(masterName)}</a>`
           : masterName;
         const text = `⏰ Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Мастер: ${linkToMaster}`;
-        await this.botService.sendMessage(clientTgId, text);
+        clientReminderOk = await this.botService.sendMessage(clientTgId, text);
+
+        const minutesUntil = (appointmentDateTime.getTime() - now.getTime()) / 60000;
+        if (minutesUntil <= 10 && minutesUntil >= 0 && !a.preSessionReminderSentAt) {
+          const master = a.master as { drinkOptions?: string[] | null; telegramId?: string } | undefined;
+          const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
+          const drinkSent =
+            drinkOptions.length > 0
+              ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
+              : await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+          let masterPreSent = true;
+          if (masterTgId) {
+            const clientUsername = a.client?.username?.trim();
+            const mention = clientUsername ? `@${clientUsername}` : escapeHtml(clientName);
+            const minutesLeft = Math.round(minutesUntil);
+            masterPreSent = await this.botService.sendMessage(
+              masterTgId,
+              `⏰ Через ${minutesLeft} мин сеанс с ${mention}.`,
+            );
+          }
+          preSessionOk = drinkSent && masterPreSent;
+        }
       }
       if (masterTgId) {
         const linkToClient = clientTgId
           ? `<a href="tg://user?id=${clientTgId}">${escapeHtml(clientName)}</a>`
           : clientName;
         const text = `⏰ Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${linkToClient}`;
-        await this.botService.sendMessage(masterTgId, text);
+        masterReminderOk = await this.botService.sendMessage(masterTgId, text);
       }
 
-      a.reminderSentAt = new Date();
-      await this.appointmentRepo.save(a);
+      if (clientReminderOk && masterReminderOk) {
+        a.reminderSentAt = new Date();
+        if (preSessionOk) a.preSessionReminderSentAt = new Date();
+        await this.appointmentRepo.save(a);
+      }
     }
   }
 
@@ -117,17 +145,29 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const clientTgId = a.client?.telegramId?.trim() || null;
       if (!clientTgId) continue;
 
-      const master = a.master as { drinkOptions?: string[] | null } | undefined;
+      const master = a.master as { drinkOptions?: string[] | null; telegramId?: string } | undefined;
       const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
+      const masterTgId = master?.telegramId?.trim() || null;
 
-      if (drinkOptions.length > 0) {
-        await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions);
-      } else {
-        await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+      const drinkSent =
+        drinkOptions.length > 0
+          ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
+          : await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+      let masterSent = true;
+      if (masterTgId) {
+        const clientName = a.client?.name ?? 'Клиент';
+        const clientUsername = a.client?.username?.trim();
+        const mention = clientUsername ? `@${clientUsername}` : escapeHtml(clientName);
+        const minutesLeft = Math.round((apptDate.getTime() - now.getTime()) / 60000);
+        masterSent = await this.botService.sendMessage(
+          masterTgId,
+          `⏰ Через ${minutesLeft} мин сеанс с ${mention}.`,
+        );
       }
-
-      a.preSessionReminderSentAt = new Date();
-      await this.appointmentRepo.save(a);
+      if (drinkSent && masterSent) {
+        a.preSessionReminderSentAt = new Date();
+        await this.appointmentRepo.save(a);
+      }
     }
   }
 }

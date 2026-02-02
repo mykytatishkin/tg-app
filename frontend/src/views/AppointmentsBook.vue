@@ -26,7 +26,14 @@ const loadingSlots = ref(false);
 const submitting = ref(false);
 const error = ref(null);
 
-const DAYS_AHEAD = 14;
+const DAYS_AHEAD = 60;
+
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function getFromTo() {
   const from = new Date();
@@ -34,8 +41,8 @@ function getFromTo() {
   const to = new Date(from);
   to.setDate(to.getDate() + DAYS_AHEAD);
   return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
+    from: toLocalDateStr(from),
+    to: toLocalDateStr(to),
   };
 }
 

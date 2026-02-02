@@ -4,7 +4,7 @@ import { onMounted, onUnmounted } from 'vue';
 const B_W_THEME = {
   '--tg-theme-bg-color': '#0d0d0d',
   '--tg-theme-text-color': '#e8e8e8',
-  '--tg-theme-hint-color': '#888',
+  '--tg-theme-hint-color': '#b8b8b8',
   '--tg-theme-link-color': '#c0c0c0',
   '--tg-theme-button-color': '#1a1a1a',
   '--tg-theme-button-text-color': '#e8e8e8',
@@ -14,7 +14,7 @@ const B_W_THEME = {
   '--tg-theme-accent-text-color': '#fff',
   '--tg-theme-header-bg-color': '#0d0d0d',
   '--tg-theme-section-header-text-color': '#e8e8e8',
-  '--tg-theme-subtitle-text-color': '#888',
+  '--tg-theme-subtitle-text-color': '#b8b8b8',
   '--tg-theme-destructive-text-color': '#c0c0c0',
 };
 

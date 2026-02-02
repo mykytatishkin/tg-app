@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
@@ -57,14 +57,40 @@ export class AppointmentsService {
     });
   }
 
+  private normalizeUsername(u: string | null | undefined): string {
+    if (u == null || typeof u !== 'string') return '';
+    return u.replace(/^@/, '').trim().toLowerCase();
+  }
+
   async getMine(user: User) {
-    const masterId = await this.getMasterId();
-    const client = await this.clientRepo.findOne({
-      where: { telegramId: user.telegramId, masterId },
+    let clients = await this.clientRepo.find({
+      where: { telegramId: user.telegramId },
+      select: ['id'],
     });
-    if (!client) return [];
+    let clientIds = clients.map((c) => c.id);
+    // Если клиент создан мастером вручную без telegramId, но с тем же @username — привязываем по username
+    if (clientIds.length === 0 && user.username) {
+      const uname = this.normalizeUsername(user.username);
+      if (uname) {
+        const withoutTg = await this.clientRepo.find({
+          where: [{ telegramId: IsNull() }, { telegramId: '' }],
+          select: ['id', 'username'],
+        });
+        const byUsername = withoutTg.filter(
+          (c) => this.normalizeUsername(c.username) === uname,
+        );
+        if (byUsername.length === 1) {
+          await this.clientRepo.update(
+            { id: byUsername[0].id },
+            { telegramId: user.telegramId },
+          );
+          clientIds = [byUsername[0].id];
+        }
+      }
+    }
+    if (clientIds.length === 0) return [];
     return this.appointmentRepo.find({
-      where: { clientId: client.id },
+      where: { clientId: In(clientIds) },
       relations: ['service'],
       order: { date: 'DESC', startTime: 'DESC' },
     });
@@ -258,6 +284,7 @@ export class AppointmentsService {
         source: AppointmentSource.SELF,
         note: dto.note ?? null,
         referenceImageUrl: dto.referenceImageUrl ?? null,
+        reminderEnabled: true,
       });
       return this.appointmentRepo.save(appointment);
     }
@@ -278,6 +305,7 @@ export class AppointmentsService {
       source: AppointmentSource.SELF,
       note: dto.note ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
+      reminderEnabled: true,
     });
     return this.appointmentRepo.save(appointment);
   }

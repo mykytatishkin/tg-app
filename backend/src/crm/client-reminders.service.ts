@@ -75,18 +75,13 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       }
 
       const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру. Ждём вас!`;
-      if (bookingUrl) {
-        await this.botService.sendMessageWithWebAppButton(
-          tgId,
-          text,
-          'Записаться',
-          bookingUrl,
-        );
-      } else {
-        await this.botService.sendMessage(tgId, text);
+      const sent = bookingUrl
+        ? await this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingUrl)
+        : await this.botService.sendMessage(tgId, text);
+      if (sent) {
+        await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
+        sentToTelegramIdsThisRun.add(tgId);
       }
-      await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
-      sentToTelegramIdsThisRun.add(tgId);
     }
   }
 }

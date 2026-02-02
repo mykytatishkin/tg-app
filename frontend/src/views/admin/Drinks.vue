@@ -55,37 +55,39 @@ async function save() {
 
 <template>
   <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)]">
-    <div class="flex items-center gap-3 mb-6">
+    <div class="flex items-center gap-3 mb-4">
       <button
         type="button"
-        class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
+        class="shrink-0 p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
         @click="goBack"
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Напитки для клиентов</h1>
+      <h1 class="text-xl font-bold min-w-0 truncate">Напитки для клиентов</h1>
     </div>
 
-    <p class="text-sm text-[var(--tg-theme-hint-color)] mb-4">
-      За 5–10 минут до сеанса клиенту придёт напоминание «Желаете что-то выпить?» с кнопками из этого списка. Выбор клиента отправится вам в бот.
-    </p>
+    <div class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]">
+      <p class="text-sm text-[var(--tg-theme-text-color)] leading-relaxed">
+        За 5–10 минут до сеанса клиенту придёт напоминание «Желаете что-то выпить?» с кнопками из этого списка. Выбор клиента отправится вам в бот.
+      </p>
+    </div>
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)] space-y-3">
-      <label for="drink-option-input" class="block text-sm font-medium text-[var(--tg-theme-hint-color)]">Добавить вариант</label>
-      <div class="flex gap-2">
+      <label for="drink-option-input" class="block text-sm font-medium text-[var(--tg-theme-text-color)]">Добавить вариант</label>
+      <div class="flex flex-col gap-2">
         <input
           id="drink-option-input"
           v-model="newOption"
           type="text"
           placeholder="Напр. Кофе, Чай, Вода"
-          class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
+          class="w-full min-w-0 p-3 rounded-lg bg-[var(--tg-theme-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
           @keydown.enter.prevent="addOption"
         >
         <button
           type="button"
-          class="py-2 px-4 rounded-lg bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] border border-[var(--tg-theme-section-separator-color)]"
+          class="w-full py-2 px-4 rounded-lg bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] border border-[var(--tg-theme-section-separator-color)]"
           @click="addOption"
         >
           Добавить
