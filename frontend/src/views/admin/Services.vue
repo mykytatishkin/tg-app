@@ -36,13 +36,13 @@ function openAddForm() {
 
 async function addService() {
   if (!form.value.name?.trim()) {
-    error.value = 'Enter service name.';
+    error.value = 'Введите название услуги.';
     return;
   }
   const duration = Number(form.value.durationMinutes);
   const price = form.value.price === '' ? undefined : Number(form.value.price);
   if (duration < 1 || (price !== undefined && price < 0)) {
-    error.value = 'Duration must be at least 1 min; price must be 0 or more.';
+    error.value = 'Длительность минимум 1 мин; цена не меньше 0.';
     return;
   }
   submitting.value = true;
@@ -92,9 +92,9 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Services</h1>
+      <h1 class="text-2xl font-bold">Услуги</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
@@ -105,22 +105,22 @@ onMounted(load);
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
         @click="openAddForm"
       >
-        Add service
+        Добавить услугу
       </button>
     </div>
 
     <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
       <div>
-        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Name</label>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Название</label>
         <input
           v-model="form.name"
           type="text"
           class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
-          placeholder="e.g. Manicure"
+          placeholder="Напр. Маникюр"
         >
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Duration (min)</label>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Длительность (мин)</label>
         <input
           v-model.number="form.durationMinutes"
           type="number"
@@ -129,7 +129,7 @@ onMounted(load);
         >
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Price (€, optional)</label>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Цена (€, необяз.)</label>
         <input
           v-model="form.price"
           type="number"
@@ -146,19 +146,19 @@ onMounted(load);
           :disabled="submitting"
           @click="addService"
         >
-          {{ submitting ? 'Adding…' : 'Add' }}
+          {{ submitting ? 'Добавляю…' : 'Добавить' }}
         </button>
         <button
           type="button"
           class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)]"
           @click="showForm = false"
         >
-          Cancel
+          Отмена
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else class="space-y-3">
       <li
@@ -179,7 +179,7 @@ onMounted(load);
           :disabled="deletingId === s.id"
           @click="removeService(s.id)"
         >
-          Delete
+          Удалить
         </button>
       </li>
     </ul>

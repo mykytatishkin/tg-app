@@ -35,22 +35,22 @@ function goBack() {
 
 async function submit() {
   if (!form.value.title?.trim()) {
-    error.value = 'Enter a title.';
+    error.value = 'Введите название.';
     return;
   }
   if (!form.value.startAt || !form.value.endAt) {
-    error.value = 'Set start and end date/time.';
+    error.value = 'Укажите дату и время начала и окончания.';
     return;
   }
   const start = new Date(form.value.startAt);
   const end = new Date(form.value.endAt);
   if (end <= start) {
-    error.value = 'End must be after start.';
+    error.value = 'Окончание должно быть позже начала.';
     return;
   }
   const count = Number(form.value.winnerCount);
   if (count < 1) {
-    error.value = 'Winner count must be at least 1.';
+    error.value = 'Количество победителей — минимум 1.';
     return;
   }
   submitting.value = true;
@@ -83,16 +83,16 @@ defaultDates();
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">New giveaway</h1>
+      <h1 class="text-2xl font-bold">Новый розыгрыш</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
 
     <form class="space-y-4" @submit.prevent="submit">
       <div>
-        <label for="giveaway-title" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Title *</label>
+        <label for="giveaway-title" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Название *</label>
         <input
           id="giveaway-title"
           v-model="form.title"
@@ -102,7 +102,7 @@ defaultDates();
         >
       </div>
       <div>
-        <label for="giveaway-desc" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Description</label>
+        <label for="giveaway-desc" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Описание</label>
         <textarea
           id="giveaway-desc"
           v-model="form.description"
@@ -112,7 +112,7 @@ defaultDates();
         />
       </div>
       <div>
-        <label for="giveaway-image" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Image URL</label>
+        <label for="giveaway-image" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Ссылка на изображение</label>
         <input
           id="giveaway-image"
           v-model="form.imageUrl"
@@ -122,7 +122,7 @@ defaultDates();
         >
       </div>
       <div>
-        <label for="giveaway-start" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Start</label>
+        <label for="giveaway-start" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Начало</label>
         <input
           id="giveaway-start"
           v-model="form.startAt"
@@ -140,7 +140,7 @@ defaultDates();
         >
       </div>
       <div>
-        <label for="giveaway-winners" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Number of winners</label>
+        <label for="giveaway-winners" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Количество победителей</label>
         <input
           id="giveaway-winners"
           v-model.number="form.winnerCount"
@@ -155,14 +155,14 @@ defaultDates();
           class="flex-1 py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
           :disabled="submitting"
         >
-          {{ submitting ? 'Creating…' : 'Create' }}
+          {{ submitting ? 'Создаю…' : 'Создать' }}
         </button>
         <button
           type="button"
           class="py-3 px-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)]"
           @click="goBack"
         >
-          Cancel
+          Отмена
         </button>
       </div>
     </form>

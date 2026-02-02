@@ -29,7 +29,7 @@ onMounted(async () => {
     <h1 class="text-2xl font-bold mb-4">Nail Master CRM</h1>
 
     <div v-if="!isAvailable" class="text-center text-gray-500">
-      <p>Open this app from Telegram to sign in.</p>
+      <p>Откройте приложение из Telegram, чтобы войти.</p>
     </div>
 
     <div v-else class="w-full max-w-sm space-y-4">
@@ -38,10 +38,10 @@ onMounted(async () => {
         class="w-full py-3 px-4 rounded-lg font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
         @click="handleLogin"
       >
-        Sign in with Telegram
+        Войти через Telegram
       </button>
       <div v-else-if="loading" class="text-center py-4">
-        <p>Signing in...</p>
+        <p>Вход…</p>
       </div>
       <p v-if="error" class="text-red-500 text-sm">{{ error }}</p>
     </div>

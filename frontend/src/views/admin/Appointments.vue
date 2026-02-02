@@ -77,9 +77,9 @@ watch(() => route.query.showAll, (val) => {
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Appointments</h1>
+      <h1 class="text-2xl font-bold">Записи</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
@@ -91,10 +91,10 @@ watch(() => route.query.showAll, (val) => {
         class="rounded"
         @change="load"
       >
-      <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Show cancelled & done</span>
+      <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Показать отменённые и завершённые</span>
     </label>
 
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else class="space-y-3">
       <li
@@ -116,13 +116,13 @@ watch(() => route.query.showAll, (val) => {
           <span
             class="text-sm capitalize px-2 py-0.5 rounded"
             :class="a.status === 'cancelled' ? 'bg-red-600 text-white' : a.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
-          >{{ a.status }}</span>
+          >{{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>
           <button
             type="button"
             class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-hint-color,#999)] text-white"
             @click="goToDetail(a.id)"
           >
-            Details
+            Подробнее
           </button>
           <template v-if="a.status === 'scheduled'">
             <button
@@ -131,7 +131,7 @@ watch(() => route.query.showAll, (val) => {
               :disabled="updatingId === a.id"
               @click.stop="setStatus(a.id, 'done')"
             >
-              Done
+              Завершено
             </button>
             <button
               type="button"
@@ -139,7 +139,7 @@ watch(() => route.query.showAll, (val) => {
               :disabled="updatingId === a.id"
               @click.stop="setStatus(a.id, 'cancelled')"
             >
-              Cancel
+              Отменить
             </button>
           </template>
         </div>

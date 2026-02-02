@@ -44,7 +44,7 @@ function goToDetail(id) {
 }
 
 function statusLabel(status) {
-  const map = { draft: 'Draft', active: 'Active', ended: 'Ended' };
+  const map = { draft: 'Черновик', active: 'Активен', ended: 'Завершён' };
   return map[status] ?? status;
 }
 
@@ -64,9 +64,9 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Giveaways</h1>
+      <h1 class="text-2xl font-bold">Розыгрыши</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
@@ -77,15 +77,15 @@ onMounted(load);
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
         @click="goToCreate"
       >
-        Create giveaway
+        Создать розыгрыш
       </button>
     </div>
 
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else>
       <p v-if="giveaways.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
-        {{ isMasterOrAdmin ? 'No giveaways yet. Create one above.' : 'No active giveaways at the moment.' }}
+        {{ isMasterOrAdmin ? 'Розыгрышей пока нет. Создайте выше.' : 'Активных розыгрышей пока нет.' }}
       </p>
       <ul v-else class="space-y-3">
         <li

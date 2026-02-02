@@ -58,23 +58,23 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">My appointments</h1>
+      <h1 class="text-2xl font-bold">Мои записи</h1>
     </div>
 
     <button
       class="w-full mb-6 py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
       @click="goToBook"
     >
-      Book appointment
+      Записаться
     </button>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else-if="appointments.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
-      No appointments yet. Book one above.
+      Записей пока нет. Запишитесь выше.
     </ul>
 
     <ul v-else class="space-y-3">
@@ -96,7 +96,7 @@ onMounted(load);
             :disabled="cancellingId === a.id"
             @click="cancelAppointment(a.id)"
           >
-            {{ cancellingId === a.id ? 'Cancelling…' : 'Cancel appointment' }}
+            {{ cancellingId === a.id ? 'Отмена…' : 'Отменить запись' }}
           </button>
         </div>
       </li>

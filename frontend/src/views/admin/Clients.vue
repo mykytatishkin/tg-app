@@ -48,7 +48,7 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
       <h1 class="text-2xl font-bold">Клиенты</h1>
     </div>

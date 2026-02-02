@@ -20,9 +20,9 @@ const adminNavItems = [
 ];
 
 const userNavItems = [
-  { path: '/appointments', label: 'My appointments', icon: '📅' },
-  { path: '/appointments/book', label: 'Book appointment', icon: '➕' },
-  { path: '/giveaways', label: 'Giveaways', icon: '🎁' },
+  { path: '/appointments', label: 'Мои записи', icon: '📅' },
+  { path: '/appointments/book', label: 'Записаться', icon: '➕' },
+  { path: '/giveaways', label: 'Розыгрыши', icon: '🎁' },
 ];
 
 function goTo(path) {
@@ -40,10 +40,10 @@ function handleLogout() {
 <template>
   <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)]">
     <h1 class="text-2xl font-bold mb-2">
-      Hello, {{ user?.firstName || 'there' }}!
+      Привет, {{ user?.firstName || 'друг' }}!
     </h1>
     <p class="text-[var(--tg-theme-hint-color,#999)] mb-6">
-      {{ isMasterOrAdmin ? 'Manage your nail studio' : 'Book and view your appointments' }}
+      {{ isMasterOrAdmin ? 'Управление студией маникюра' : 'Записывайтесь и смотрите свои визиты' }}
     </p>
 
     <div class="grid gap-3">

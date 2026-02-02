@@ -122,7 +122,7 @@ async function verifyParticipant(participantId) {
 }
 
 async function remove() {
-  if (!isMasterOrAdmin.value || !confirm('Delete this giveaway?')) return;
+  if (!isMasterOrAdmin.value || !confirm('Удалить этот розыгрыш?')) return;
   deleting.value = true;
   error.value = null;
   try {
@@ -142,7 +142,7 @@ function goBack() {
 }
 
 function statusLabel(s) {
-  const map = { draft: 'Draft', active: 'Active', ended: 'Ended' };
+  const map = { draft: 'Черновик', active: 'Активен', ended: 'Завершён' };
   return map[s] ?? s;
 }
 
@@ -178,13 +178,13 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold truncate flex-1">Giveaway</h1>
+      <h1 class="text-2xl font-bold truncate flex-1">Розыгрыш</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="giveaway">
       <!-- Card: for client show prize / condition / period; for master same + status -->
@@ -229,7 +229,7 @@ onMounted(load);
               {{ giveaway.endAt ? new Date(giveaway.endAt).toLocaleString() : '' }}
             </div>
             <div v-if="giveaway.conditions?.length" class="mt-3 text-sm">
-              <span class="font-medium">Conditions:</span>
+              <span class="font-medium">Условия:</span>
               <ul class="list-disc list-inside mt-1 text-[var(--tg-theme-hint-color,#999)]">
                 <li v-for="(c, i) in giveaway.conditions" :key="i">
                   {{ c.type }}{{ c.value ? `: ${c.value}` : '' }}
@@ -248,12 +248,12 @@ onMounted(load);
             class="w-full py-3 rounded-xl font-medium bg-green-600 text-white"
             @click="setStatus('active')"
           >
-            Activate giveaway
+            Активировать розыгрыш
           </button>
         </template>
         <template v-else-if="giveaway.status === 'active'">
           <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ verifiedCount }} verified / {{ participants.length }} participant(s)
+            {{ verifiedCount }} проверено / {{ participants.length }} участников
           </p>
           <button
             type="button"
@@ -261,7 +261,7 @@ onMounted(load);
             :disabled="!canDraw || drawing"
             @click="draw"
           >
-            {{ drawing ? 'Drawing…' : 'Draw winner(s)' }}
+            {{ drawing ? 'Жеребьёвка…' : 'Провести жеребьёвку' }}
           </button>
         </template>
         <template v-if="giveaway.status === 'draft'">
@@ -271,7 +271,7 @@ onMounted(load);
             :disabled="deleting"
             @click="remove"
           >
-            {{ deleting ? 'Deleting…' : 'Delete giveaway' }}
+            {{ deleting ? 'Удаляю…' : 'Удалить розыгрыш' }}
           </button>
         </template>
       </div>
@@ -307,7 +307,7 @@ onMounted(load);
 
       <!-- Participants list (master) -->
       <div v-if="isMasterOrAdmin && participants.length > 0" class="mb-6">
-        <h3 class="text-lg font-medium mb-2">Participants</h3>
+        <h3 class="text-lg font-medium mb-2">Участники</h3>
         <ul class="space-y-2">
           <li
             v-for="p in participants"
@@ -322,7 +322,7 @@ onMounted(load);
 
       <!-- Winners (client + master) -->
       <div v-if="giveaway.status === 'ended' && winners.length > 0" class="mb-6">
-        <h3 class="text-lg font-medium mb-2">{{ isMasterOrAdmin ? 'Winners' : 'Победители' }}</h3>
+        <h3 class="text-lg font-medium mb-2">Победители</h3>
         <ul class="space-y-2">
           <li
             v-for="w in winners"

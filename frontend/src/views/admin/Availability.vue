@@ -68,7 +68,7 @@ function onFormStartTimeChange() {
 
 async function addSlot() {
   if (!form.value.date || !form.value.startTime || !form.value.endTime) {
-    error.value = 'Fill date, start and end time.';
+    error.value = 'Укажите дату, начало и конец.';
     return;
   }
   const startTime = form.value.startTime.length === 5 ? form.value.startTime + ':00' : form.value.startTime;
@@ -123,9 +123,9 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Availability</h1>
+      <h1 class="text-2xl font-bold">Доступность</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
@@ -136,7 +136,7 @@ onMounted(load);
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
         @click="openNewForm"
       >
-        Add slot
+        Добавить слот
       </button>
       <button
         v-if="lastAdded"
@@ -144,12 +144,12 @@ onMounted(load);
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
         @click="openFormWithSameDate"
       >
-        Continue with same date
+        Продолжить с той же датой
       </button>
     </div>
 
     <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
-      <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">Default interval: {{ DEFAULT_DURATION_HOURS }} h</p>
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">Интервал по умолчанию: {{ DEFAULT_DURATION_HOURS }} ч</p>
       <input
         v-model="form.date"
         type="date"
@@ -175,19 +175,19 @@ onMounted(load);
           :disabled="submitting"
           @click="addSlot"
         >
-          {{ submitting ? 'Adding…' : 'Add' }}
+          {{ submitting ? 'Добавляю…' : 'Добавить' }}
         </button>
         <button
           type="button"
           class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)]"
           @click="showForm = false"
         >
-          Cancel
+          Отмена
         </button>
       </div>
     </div>
 
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else class="space-y-3">
       <li
@@ -208,7 +208,7 @@ onMounted(load);
           :disabled="deletingId === s.id"
           @click="removeSlot(s.id)"
         >
-          Delete
+          Удалить
         </button>
       </li>
     </ul>

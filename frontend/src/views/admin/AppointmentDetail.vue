@@ -70,52 +70,52 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Back
+        ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Appointment details</h1>
+      <h1 class="text-2xl font-bold">Детали записи</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="appointment">
       <div class="space-y-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] p-4 mb-6">
         <div>
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Date & time</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Дата и время</span>
           <div class="font-medium">{{ appointment.date }} {{ appointment.startTime }}</div>
         </div>
         <div>
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Client</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Клиент</span>
           <div class="font-medium">{{ appointment.client?.name }}</div>
         </div>
         <div>
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Service</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Услуга</span>
           <div class="font-medium">{{ appointment.service?.name }}</div>
         </div>
         <div>
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Status</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Статус</span>
           <div
-            class="capitalize inline-block px-2 py-0.5 rounded text-sm"
+            class="inline-block px-2 py-0.5 rounded text-sm"
             :class="appointment.status === 'cancelled' ? 'bg-red-600 text-white' : appointment.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
           >
-            {{ appointment.status }}
+            {{ appointment.status === 'scheduled' ? 'Запланировано' : appointment.status === 'done' ? 'Завершено' : 'Отменено' }}
           </div>
         </div>
 
         <div v-if="appointment.note">
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Client wishes</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Пожелания клиента</span>
           <div class="mt-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
             {{ appointment.note }}
           </div>
         </div>
 
         <div v-if="hasReferenceImage">
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Reference image</span>
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Референс-фото</span>
           <div class="mt-1">
             <img
               v-if="!imageError"
               :src="appointment.referenceImageUrl"
-              alt="Reference"
+              alt="Референс"
               class="max-w-full max-h-64 rounded-lg border border-[var(--tg-theme-section-separator-color,#e5e5e5)] object-contain"
               @error="onImageError"
             >
@@ -125,7 +125,7 @@ onMounted(load);
               rel="noopener noreferrer"
               class="inline-block mt-2 text-sm text-[var(--tg-theme-link-color,#2481cc)] underline"
             >
-              {{ imageError ? 'Open image' : 'Open image in new tab' }}
+              {{ imageError ? 'Открыть изображение' : 'Открыть в новой вкладке' }}
             </a>
           </div>
         </div>
@@ -138,7 +138,7 @@ onMounted(load);
           :disabled="updatingId === appointment.id"
           @click="setStatus('done')"
         >
-          Done
+          Завершено
         </button>
         <button
           type="button"
@@ -146,7 +146,7 @@ onMounted(load);
           :disabled="updatingId === appointment.id"
           @click="setStatus('cancelled')"
         >
-          Cancel
+          Отменить
         </button>
       </div>
     </template>

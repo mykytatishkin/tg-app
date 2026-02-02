@@ -96,7 +96,7 @@ onMounted(load);
             class="flex justify-between items-center p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-sm"
           >
             <span>{{ formatDate(a.date) }} {{ a.startTime?.slice(0, 5) }}</span>
-            <span class="text-[var(--tg-theme-hint-color,#999)]">{{ a.serviceName ?? '—' }} · {{ a.status }}</span>
+            <span class="text-[var(--tg-theme-hint-color,#999)]">{{ a.serviceName ?? '—' }} · {{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>
           </li>
         </ul>
       </div>
