@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsBoolean, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNotEmpty, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateAvailabilityDto {
   @IsString()
@@ -16,4 +17,15 @@ export class CreateAvailabilityDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  /** Minus = discount, plus = extra charge. */
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  priceModifier?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  forModels?: boolean;
 }

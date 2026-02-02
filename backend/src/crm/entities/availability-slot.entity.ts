@@ -30,4 +30,12 @@ export class AvailabilitySlot {
 
   @Column({ type: 'boolean', default: true })
   isAvailable: boolean;
+
+  /** Price modifier for this slot: negative = discount, positive = extra charge. Null = no modifier. */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  priceModifier: number | null;
+
+  /** Slot for models: one booking per slot, no service selection. */
+  @Column({ type: 'boolean', default: false })
+  forModels: boolean;
 }

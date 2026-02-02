@@ -100,7 +100,8 @@ watch(() => route.query.showAll, (val) => {
       <li
         v-for="a in appointments"
         :key="a.id"
-        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+        class="p-4 rounded-xl"
+        :class="!a.serviceId ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
       >
         <button
           type="button"
@@ -109,10 +110,14 @@ watch(() => route.query.showAll, (val) => {
         >
           <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ a.client?.name }} · {{ a.service?.name }}
+            {{ a.client?.name }} · {{ a.serviceId ? a.service?.name : 'Для моделей' }}
           </div>
         </button>
         <div class="flex items-center gap-2 mt-2 flex-wrap">
+          <span
+            v-if="!a.serviceId"
+            class="text-sm px-2 py-0.5 rounded bg-purple-500 text-white"
+          >Для моделей</span>
           <span
             v-if="a.withDiscount"
             class="text-sm px-2 py-0.5 rounded bg-amber-500 text-white"

@@ -25,6 +25,9 @@ export class Service {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   price: number | null;
 
+  @Column({ type: 'boolean', default: false })
+  forModels: boolean;
+
   @Column({ type: 'varchar' })
   masterId: string;
 

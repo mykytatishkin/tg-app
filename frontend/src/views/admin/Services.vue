@@ -11,9 +11,10 @@ const services = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showForm = ref(false);
-const form = ref({ name: '', durationMinutes: 60, price: '' });
+const form = ref({ name: '', durationMinutes: 60, price: '', forModels: false });
 const submitting = ref(false);
 const deletingId = ref(null);
+const togglingForModelsId = ref(null);
 
 async function load() {
   loading.value = true;
@@ -29,7 +30,7 @@ async function load() {
 
 function openAddForm() {
   hapticFeedback?.('light');
-  form.value = { name: '', durationMinutes: 60, price: '' };
+  form.value = { name: '', durationMinutes: 60, price: '', forModels: false };
   showForm.value = true;
   error.value = null;
 }
@@ -52,6 +53,7 @@ async function addService() {
       name: form.value.name.trim(),
       durationMinutes: duration,
       price: price,
+      forModels: !!form.value.forModels,
     });
     hapticFeedback?.('light');
     showForm.value = false;
@@ -74,6 +76,20 @@ async function removeService(id) {
     error.value = e.message;
   } finally {
     deletingId.value = null;
+  }
+}
+
+async function toggleForModels(s) {
+  togglingForModelsId.value = s.id;
+  error.value = null;
+  try {
+    await api.put(`/crm/services/${s.id}`, { forModels: !s.forModels });
+    hapticFeedback?.('light');
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    togglingForModelsId.value = null;
   }
 }
 
@@ -129,7 +145,7 @@ onMounted(load);
         >
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Цена (€, необяз.)</label>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Цена от (€+, необяз.)</label>
         <input
           v-model="form.price"
           type="number"
@@ -138,7 +154,12 @@ onMounted(load);
           class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
           placeholder="0"
         >
+        <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минимум, отображается как «цена+ €».</p>
       </div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input v-model="form.forModels" type="checkbox" class="rounded">
+        <span class="text-sm">Для моделей</span>
+      </label>
       <div class="flex gap-2">
         <button
           type="button"
@@ -164,23 +185,36 @@ onMounted(load);
       <li
         v-for="s in services"
         :key="s.id"
-        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] flex items-center justify-between gap-3"
+        class="p-4 rounded-xl flex items-center justify-between gap-3"
+        :class="s.forModels ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
       >
         <div class="min-w-0">
           <div class="font-medium">{{ s.name }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.durationMinutes }} min
-            <span v-if="s.price != null"> · {{ s.price }} €</span>
+            <span v-if="s.price != null"> · {{ s.price }}+ €</span>
+            <span v-if="s.forModels" class="ml-1 text-purple-600 font-medium">· Для моделей</span>
           </div>
         </div>
-        <button
-          type="button"
-          class="shrink-0 text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
-          :disabled="deletingId === s.id"
-          @click="removeService(s.id)"
-        >
-          Удалить
-        </button>
+        <div class="shrink-0 flex items-center gap-2">
+          <button
+            type="button"
+            class="text-sm px-2 py-1 rounded disabled:opacity-50"
+            :class="s.forModels ? 'bg-purple-500 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
+            :disabled="togglingForModelsId === s.id"
+            @click="toggleForModels(s)"
+          >
+            {{ togglingForModelsId === s.id ? '…' : (s.forModels ? 'Для моделей ✓' : 'Для моделей') }}
+          </button>
+          <button
+            type="button"
+            class="text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
+            :disabled="deletingId === s.id"
+            @click="removeService(s.id)"
+          >
+            Удалить
+          </button>
+        </div>
       </li>
     </ul>
   </div>

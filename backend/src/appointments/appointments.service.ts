@@ -48,10 +48,12 @@ export class AppointmentsService {
     return this.getMasterId();
   }
 
-  async getServices(masterId?: string) {
+  async getServices(masterId?: string, forModels?: boolean) {
     const resolved = await this.resolveMasterId(masterId);
+    const where: { masterId: string; forModels?: boolean } = { masterId: resolved };
+    if (forModels === true) where.forModels = true;
     return this.serviceRepo.find({
-      where: { masterId: resolved },
+      where,
       order: { name: 'ASC' },
     });
   }
@@ -109,6 +111,9 @@ export class AppointmentsService {
     const freeSlots: { startTime: string; endTime: string; slotId?: string }[] = [];
 
     for (const slot of slots) {
+      const modelBooked = booked.some((a) => a.slotId === slot.id && !a.serviceId);
+      if (modelBooked) continue;
+
       let currentMin = this.toMinutes(slot.startTime);
       const slotEndMin = this.toMinutes(slot.endTime);
 
@@ -132,6 +137,47 @@ export class AppointmentsService {
     }
 
     return freeSlots;
+  }
+
+  /** Returns "for models" slots in range: one booking per slot, no service. */
+  async getAvailableModelSlotsInRange(
+    fromDate: string,
+    toDate: string,
+    masterId?: string,
+  ): Promise<{ date: string; startTime: string; endTime: string; slotId: string }[]> {
+    const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    if (from > to) return [];
+
+    const slots = await this.slotRepo.find({
+      where: { masterId: resolved, isAvailable: true, forModels: true },
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+
+    const bookedSlotIds = await this.appointmentRepo
+      .createQueryBuilder('a')
+      .select('a.slotId')
+      .where('a.masterId = :masterId', { masterId: resolved })
+      .andWhere('a.status = :status', { status: AppointmentStatus.SCHEDULED })
+      .andWhere('a.slotId IS NOT NULL')
+      .andWhere('a.date >= :from', { from: fromDate })
+      .andWhere('a.date <= :to', { to: toDate })
+      .getRawMany()
+      .then((rows) => new Set(rows.map((r) => r.a_slotId).filter(Boolean)));
+
+    const result: { date: string; startTime: string; endTime: string; slotId: string }[] = [];
+    for (const slot of slots) {
+      if (slot.date < fromDate || slot.date > toDate) continue;
+      if (bookedSlotIds.has(slot.id)) continue;
+      result.push({
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        slotId: slot.id,
+      });
+    }
+    return result;
   }
 
   /** Returns all available slots in a date range (for client booking: choose from master's options only). */
@@ -181,6 +227,32 @@ export class AppointmentsService {
         masterId,
       });
       await this.clientRepo.save(client);
+    }
+
+    const isForModels = !dto.serviceId;
+    if (isForModels) {
+      if (!dto.slotId) throw new BadRequestException('slotId is required for model booking');
+      const slot = await this.slotRepo.findOne({
+        where: { id: dto.slotId, masterId, forModels: true },
+      });
+      if (!slot) throw new BadRequestException('Model slot not found or not for models');
+      const alreadyBooked = await this.appointmentRepo.findOne({
+        where: { slotId: dto.slotId, status: AppointmentStatus.SCHEDULED },
+      });
+      if (alreadyBooked) throw new BadRequestException('This slot is already booked');
+      const appointment = this.appointmentRepo.create({
+        clientId: client.id,
+        serviceId: null,
+        slotId: dto.slotId,
+        date: dto.date,
+        startTime: dto.startTime,
+        masterId,
+        status: AppointmentStatus.SCHEDULED,
+        source: AppointmentSource.SELF,
+        note: dto.note ?? null,
+        referenceImageUrl: dto.referenceImageUrl ?? null,
+      });
+      return this.appointmentRepo.save(appointment);
     }
 
     const service = await this.serviceRepo.findOne({

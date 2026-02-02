@@ -16,6 +16,9 @@ const updatingId = ref(null);
 const editingDiscount = ref(false);
 const discountForm = ref({ withDiscount: false, discountLabel: '', discountPercent: '' });
 const savingDiscount = ref(false);
+const editingFinalPrice = ref(false);
+const finalPriceInput = ref('');
+const savingFinalPrice = ref(false);
 
 async function load() {
   loading.value = true;
@@ -106,6 +109,39 @@ function goBack() {
 
 const hasReferenceImage = computed(() => appointment.value?.referenceImageUrl);
 
+const isByReference = computed(() => !!(appointment.value?.note || appointment.value?.referenceImageUrl));
+
+function startEditFinalPrice() {
+  editingFinalPrice.value = true;
+  finalPriceInput.value = appointment.value?.finalPrice != null ? String(appointment.value.finalPrice) : '';
+}
+
+function cancelEditFinalPrice() {
+  editingFinalPrice.value = false;
+}
+
+async function saveFinalPrice() {
+  if (!appointment.value) return;
+  savingFinalPrice.value = true;
+  error.value = null;
+  try {
+    const val = finalPriceInput.value.trim();
+    const finalPrice = val === '' ? undefined : Number(val);
+    if (finalPrice !== undefined && (Number.isNaN(finalPrice) || finalPrice < 0)) {
+      error.value = 'Введите число ≥ 0.';
+      return;
+    }
+    await api.put(`/crm/appointments/${appointment.value.id}`, { finalPrice: finalPrice ?? null });
+    hapticFeedback?.('light');
+    await load();
+    editingFinalPrice.value = false;
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    savingFinalPrice.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -125,7 +161,10 @@ onMounted(load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="appointment">
-      <div class="space-y-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] p-4 mb-6">
+      <div
+        class="space-y-4 rounded-xl p-4 mb-6"
+        :class="!appointment.serviceId ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
+      >
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Дата и время</span>
           <div class="font-medium">{{ appointment.date }} {{ appointment.startTime }}</div>
@@ -136,7 +175,10 @@ onMounted(load);
         </div>
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Услуга</span>
-          <div class="font-medium">{{ appointment.service?.name }}</div>
+          <div class="font-medium">
+            <template v-if="appointment.serviceId">{{ appointment.service?.name }}</template>
+            <span v-else class="text-purple-600 font-medium">Для моделей</span>
+          </div>
         </div>
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Статус</span>
@@ -218,6 +260,39 @@ onMounted(load);
           <div class="mt-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
             {{ appointment.note }}
           </div>
+        </div>
+
+        <div v-if="isByReference" class="space-y-2">
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Финальная цена (по референсу)</span>
+          <div v-if="!editingFinalPrice" class="mt-1 flex items-center gap-2">
+            <span v-if="appointment.finalPrice != null" class="font-medium">{{ appointment.finalPrice }} €</span>
+            <span v-else class="text-[var(--tg-theme-hint-color,#999)]">Не указана</span>
+            <button
+              type="button"
+              class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-button-color,#2481cc)] text-white"
+              @click="startEditFinalPrice"
+            >
+              {{ appointment.finalPrice != null ? 'Изменить' : 'Указать' }}
+            </button>
+          </div>
+          <form v-else class="flex flex-wrap items-center gap-2" @submit.prevent="saveFinalPrice">
+            <input
+              id="final-price"
+              v-model="finalPriceInput"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              class="w-28 px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)]"
+            >
+            <span class="text-sm">€</span>
+            <button type="submit" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#2481cc)] text-white text-sm" :disabled="savingFinalPrice">
+              {{ savingFinalPrice ? 'Сохранение…' : 'Сохранить' }}
+            </button>
+            <button type="button" class="px-3 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e4e4e7)] text-sm" @click="cancelEditFinalPrice">
+              Отмена
+            </button>
+          </form>
         </div>
 
         <div v-if="hasReferenceImage">

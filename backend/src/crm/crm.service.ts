@@ -85,6 +85,7 @@ export class CrmService {
     const byServiceMap = new Map<string, { serviceId: string; serviceName: string; count: number }>();
     for (const a of doneOrScheduled) {
       const sid = a.serviceId;
+      if (!sid) continue;
       const name = (a as any).service?.name ?? 'Service';
       if (!byServiceMap.has(sid)) byServiceMap.set(sid, { serviceId: sid, serviceName: name, count: 0 });
       byServiceMap.get(sid)!.count += 1;
@@ -111,7 +112,7 @@ export class CrmService {
       date: a.date,
       startTime: a.startTime,
       status: a.status,
-      serviceName: (a as any).service?.name ?? null,
+      serviceName: (a as any).service?.name ?? (a.serviceId ? null : 'Для моделей'),
     }));
     const { appointments: _, ...rest } = client;
     return { ...rest, stats, recentAppointments };
@@ -281,6 +282,7 @@ export class CrmService {
     const byServiceMap = new Map<string, { serviceId: string; serviceName: string; count: number }>();
     for (const a of doneOrScheduled) {
       const sid = a.serviceId;
+      if (!sid) continue;
       const name = (a as any).service?.name ?? 'Service';
       if (!byServiceMap.has(sid)) byServiceMap.set(sid, { serviceId: sid, serviceName: name, count: 0 });
       byServiceMap.get(sid)!.count += 1;

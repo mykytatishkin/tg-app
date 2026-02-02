@@ -6,8 +6,8 @@ export class BookAppointmentDto {
   masterId?: string;
 
   @IsString()
-  @IsNotEmpty()
-  serviceId: string;
+  @IsOptional()
+  serviceId?: string;
 
   @IsString()
   @IsOptional()

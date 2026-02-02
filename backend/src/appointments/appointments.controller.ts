@@ -26,8 +26,12 @@ export class AppointmentsController {
   }
 
   @Get('services')
-  getServices(@Query('masterId') masterId?: string) {
-    return this.appointmentsService.getServices(masterId);
+  getServices(
+    @Query('masterId') masterId?: string,
+    @Query('forModels') forModels?: string,
+  ) {
+    const forModelsFlag = forModels === 'true' || forModels === '1';
+    return this.appointmentsService.getServices(masterId, forModelsFlag);
   }
 
   @Get('mine')
@@ -39,10 +43,16 @@ export class AppointmentsController {
   getAvailableSlots(
     @Query('serviceId') serviceId: string,
     @Query('masterId') masterId: string,
+    @Query('forModels') forModels: string,
     @Query('date') date: string,
     @Query('from') from: string,
     @Query('to') to: string,
   ) {
+    const isForModels = forModels === 'true' || forModels === '1';
+    if (isForModels) {
+      if (!from || !to) throw new BadRequestException('from and to are required for model slots');
+      return this.appointmentsService.getAvailableModelSlotsInRange(from, to, masterId);
+    }
     if (!serviceId) {
       throw new BadRequestException('serviceId is required');
     }

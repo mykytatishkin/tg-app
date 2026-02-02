@@ -25,7 +25,7 @@ const slots = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showForm = ref(false);
-const form = ref({ date: '', startTime: '09:00', endTime: '11:00' });
+const form = ref({ date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false });
 const submitting = ref(false);
 const deletingId = ref(null);
 const lastAdded = ref(null);
@@ -50,6 +50,8 @@ function openFormWithSameDate() {
     date: lastAdded.value.date,
     startTime: nextStart.slice(0, 5),
     endTime: getDefaultEndTime(nextStart).slice(0, 5),
+    priceModifier: '',
+    forModels: false,
   };
   showForm.value = true;
   lastAdded.value = null;
@@ -57,7 +59,7 @@ function openFormWithSameDate() {
 
 function openNewForm() {
   const today = new Date().toISOString().slice(0, 10);
-  form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5) };
+  form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5), priceModifier: '', forModels: false };
   showForm.value = true;
   lastAdded.value = null;
 }
@@ -75,17 +77,21 @@ async function addSlot() {
   const endTime = form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime;
   submitting.value = true;
   error.value = null;
+  const priceModifierRaw = form.value.priceModifier?.trim();
+  const priceModifier = priceModifierRaw === '' || priceModifierRaw == null ? undefined : Number(priceModifierRaw);
   try {
     await api.post('/crm/availability', {
       date: form.value.date,
       startTime,
       endTime,
       isAvailable: true,
+      ...(priceModifier != null && !Number.isNaN(priceModifier) ? { priceModifier } : {}),
+      forModels: !!form.value.forModels,
     });
     hapticFeedback?.('light');
     lastAdded.value = { date: form.value.date, endTime };
     showForm.value = false;
-    form.value = { date: '', startTime: '09:00', endTime: '11:00' };
+    form.value = { date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false };
     await load();
   } catch (e) {
     error.value = e.message;
@@ -168,6 +174,22 @@ onMounted(load);
           class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
+      <div>
+        <label for="slot-price-modifier" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Скидка / Доплата (€)</label>
+        <input
+          id="slot-price-modifier"
+          v-model="form.priceModifier"
+          type="number"
+          step="0.01"
+          placeholder="−5 скидка, +10 доплата"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+        >
+        <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минус — скидка, плюс — доплата. Пусто — без изменения цены.</p>
+      </div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input v-model="form.forModels" type="checkbox" class="rounded">
+        <span class="text-sm">Для моделей</span>
+      </label>
       <div class="flex gap-2">
         <button
           type="button"
@@ -199,6 +221,10 @@ onMounted(load);
           <div class="font-medium">{{ s.date }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.startTime }} – {{ s.endTime }}
+            <span v-if="s.forModels" class="text-purple-600 font-medium">Для моделей</span>
+            <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-green-600' : 'text-amber-600'">
+              {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
+            </span>
             <span v-if="!s.isAvailable" class="text-red-500"> (unavailable)</span>
           </div>
         </div>

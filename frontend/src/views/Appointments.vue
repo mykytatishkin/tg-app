@@ -81,12 +81,16 @@ onMounted(load);
       <li
         v-for="a in appointments"
         :key="a.id"
-        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+        class="p-4 rounded-xl"
+        :class="!a.serviceId ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
       >
         <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
         <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-          {{ a.service?.name }}
-          <span v-if="a.service?.durationMinutes"> · {{ a.service.durationMinutes }} min</span>
+          <template v-if="a.serviceId">
+            {{ a.service?.name }}
+            <span v-if="a.service?.durationMinutes"> · {{ a.service.durationMinutes }} min</span>
+          </template>
+          <span v-else class="text-purple-600 font-medium">для моделей</span>
         </div>
         <div v-if="a.note" class="text-sm mt-1">{{ a.note }}</div>
         <div v-if="a.status === 'scheduled'" class="mt-2">

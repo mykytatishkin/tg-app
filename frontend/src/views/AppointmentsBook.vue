@@ -7,12 +7,17 @@ import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 
+const forModelsMode = ref(false);
 const masters = ref([]);
 const selectedMasterId = ref('');
 const services = ref([]);
 const selectedServiceId = ref('');
+const modelServices = ref([]);
+const loadingModelServices = ref(false);
 const slots = ref([]);
 const selectedSlot = ref(null);
+/** false = Дизайн от мастера, true = Дизайн по референсу */
+const designByReference = ref(false);
 const note = ref('');
 const referenceImageUrl = ref('');
 const loadingMasters = ref(true);
@@ -41,7 +46,9 @@ function formatMasterName(m) {
 function formatSlotLabel(slot) {
   const d = new Date(slot.date + 'T12:00:00');
   const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', weekday: 'short' });
-  return `${dateStr}, ${slot.startTime.slice(0, 5)}`;
+  const start = slot.startTime?.slice(0, 5) ?? '';
+  const end = slot.endTime?.slice(0, 5) ?? '';
+  return end ? `${dateStr}, ${start} – ${end}` : `${dateStr}, ${start}`;
 }
 
 async function loadMasters() {
@@ -90,11 +97,31 @@ async function loadServices() {
   }
 }
 
+async function loadModelServices() {
+  if (!selectedMasterId.value) {
+    modelServices.value = [];
+    return;
+  }
+  loadingModelServices.value = true;
+  modelServices.value = [];
+  error.value = null;
+  try {
+    modelServices.value = await api.get(
+      `/appointments/services?masterId=${encodeURIComponent(selectedMasterId.value)}&forModels=true`
+    );
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    loadingModelServices.value = false;
+  }
+}
+
 async function loadSlots() {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadSlots',message:'loadSlots entry',data:{masterId:selectedMasterId.value,serviceId:selectedServiceId.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-  if (!selectedMasterId.value || !selectedServiceId.value) {
+  if (!selectedMasterId.value) {
+    slots.value = [];
+    return;
+  }
+  if (!forModelsMode.value && !selectedServiceId.value) {
     slots.value = [];
     return;
   }
@@ -104,9 +131,13 @@ async function loadSlots() {
   error.value = null;
   try {
     const { from, to } = getFromTo();
-    const list = await api.get(
-      `/appointments/available-slots?masterId=${encodeURIComponent(selectedMasterId.value)}&serviceId=${encodeURIComponent(selectedServiceId.value)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
-    );
+    const list = forModelsMode.value
+      ? await api.get(
+          `/appointments/available-slots?forModels=true&masterId=${encodeURIComponent(selectedMasterId.value)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        )
+      : await api.get(
+          `/appointments/available-slots?masterId=${encodeURIComponent(selectedMasterId.value)}&serviceId=${encodeURIComponent(selectedServiceId.value)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        );
     slots.value = list;
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadSlots',message:'loadSlots success',data:{slotsCount:Array.isArray(list)?list.length:0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
@@ -122,7 +153,12 @@ async function loadSlots() {
 }
 
 function onMasterChange() {
-  loadServices();
+  if (forModelsMode.value) {
+    loadModelServices();
+    loadSlots();
+  } else {
+    loadServices();
+  }
 }
 
 function onServiceChange() {
@@ -135,22 +171,27 @@ function selectSlot(slot) {
 }
 
 async function submit() {
-  if (!selectedMasterId.value || !selectedServiceId.value || !selectedSlot.value) {
-    error.value = 'Select master, service and time slot.';
+  if (!selectedMasterId.value || !selectedSlot.value) {
+    error.value = forModelsMode.value ? 'Выберите мастера и время.' : 'Выберите мастера, услугу и время.';
+    return;
+  }
+  if (!forModelsMode.value && !selectedServiceId.value) {
+    error.value = 'Выберите услугу.';
     return;
   }
   submitting.value = true;
   error.value = null;
   try {
-    const appointment = await api.post('/appointments/book', {
+    const payload = {
       masterId: selectedMasterId.value,
-      serviceId: selectedServiceId.value,
       date: selectedSlot.value.date,
       startTime: selectedSlot.value.startTime,
       slotId: selectedSlot.value.slotId,
-      note: note.value || undefined,
-      referenceImageUrl: referenceImageUrl.value || undefined,
-    });
+      note: designByReference.value ? (note.value || undefined) : undefined,
+      referenceImageUrl: designByReference.value ? (referenceImageUrl.value || undefined) : undefined,
+    };
+    if (!forModelsMode.value) payload.serviceId = selectedServiceId.value;
+    const appointment = await api.post('/appointments/book', payload);
     hapticFeedback?.('success');
     router.push({ name: 'BookingSuccess', query: { id: appointment.id } });
   } catch (e) {
@@ -165,20 +206,31 @@ function goBack() {
   router.push('/appointments');
 }
 
+function onBookingModeChange() {
+  selectedServiceId.value = '';
+  selectedSlot.value = null;
+  slots.value = [];
+  if (forModelsMode.value) {
+    if (selectedMasterId.value) {
+      loadModelServices();
+      loadSlots();
+    }
+  } else {
+    if (selectedMasterId.value) loadServices();
+  }
+}
+
 onMounted(async () => {
   await loadMasters();
-  if (selectedMasterId.value) await loadServices();
+  if (selectedMasterId.value && !forModelsMode.value) await loadServices();
 });
 
 watch(selectedMasterId, () => {
-  if (!loadingMasters.value) loadServices();
+  if (!loadingMasters.value) onMasterChange();
 });
 
-watch(selectedServiceId, (newVal) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:watch(selectedServiceId)',message:'watch fired',data:{newVal,hasMaster:!!selectedMasterId.value},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  if (selectedMasterId.value) loadSlots();
+watch(selectedServiceId, () => {
+  if (selectedMasterId.value && !forModelsMode.value) loadSlots();
 });
 </script>
 
@@ -204,6 +256,28 @@ watch(selectedServiceId, (newVal) => {
 
     <template v-else>
       <div class="space-y-4 mb-6">
+        <div class="space-y-2">
+          <span class="block text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Тип записи</span>
+          <div class="flex rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5">
+            <button
+              type="button"
+              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
+              :class="!forModelsMode ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              @click="forModelsMode = false; onBookingModeChange()"
+            >
+              Услуга
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
+              :class="forModelsMode ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              @click="forModelsMode = true; onBookingModeChange()"
+            >
+              Для моделей
+            </button>
+          </div>
+        </div>
+
         <div>
           <label for="book-master" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Мастер</label>
           <select
@@ -218,7 +292,7 @@ watch(selectedServiceId, (newVal) => {
           </select>
         </div>
 
-        <div v-if="selectedMasterId">
+        <div v-if="selectedMasterId && !forModelsMode">
           <label for="book-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга</label>
           <div v-if="loadingServices" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка услуг…</div>
           <select
@@ -230,62 +304,111 @@ watch(selectedServiceId, (newVal) => {
           >
             <option value="">Выберите услугу</option>
             <option v-for="s in services" :key="s.id" :value="s.id">
-              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + ' €' : '' }}
+              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + '+ €' : '' }}
             </option>
           </select>
         </div>
 
-        <div v-if="selectedServiceId">
-          <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время</label>
+        <div v-if="forModelsMode && selectedMasterId" class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Сервисы для моделей</label>
+            <div v-if="loadingModelServices" class="text-[var(--tg-theme-hint-color,#999)] text-sm">Загрузка…</div>
+            <div v-else-if="modelServices.length === 0" class="text-sm text-[var(--tg-theme-hint-color,#999)] p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+              Нет услуг для моделей. Выберите время ниже.
+            </div>
+            <ul v-else class="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 space-y-1">
+              <li v-for="ms in modelServices" :key="ms.id" class="text-sm text-purple-700 dark:text-purple-300">
+                {{ ms.name }}
+                <span v-if="ms.durationMinutes"> · {{ ms.durationMinutes }} min</span>
+                <span v-if="ms.price != null"> · {{ ms.price }}+ €</span>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время (для моделей)</label>
+          </div>
+        </div>
+        <div v-else-if="!forModelsMode && selectedServiceId" class="space-y-1">
+          <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">
+            Свободное время
+          </label>
+        </div>
+        <div v-if="(forModelsMode ? selectedMasterId : selectedServiceId)">
           <div v-if="loadingSlots" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка слотов…</div>
           <div v-else-if="slots.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
-            Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте другую услугу или зайдите позже.
+            Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте позже.
           </div>
           <ul v-else class="space-y-2 max-h-64 overflow-y-auto">
             <li
               v-for="(slot, idx) in slots"
-              :key="`${slot.date}-${slot.startTime}-${idx}`"
+              :key="`${slot.date}-${slot.startTime}-${slot.slotId || idx}`"
             >
               <button
                 type="button"
                 class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
-                :class="selectedSlot && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
+                :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
                   ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]'
-                  : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
+                  : forModelsMode
+                    ? 'bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700'
+                    : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
                 @click="selectSlot(slot)"
               >
                 {{ formatSlotLabel(slot) }}
+                <span v-if="forModelsMode" class="ml-1 text-purple-600 font-medium">Для моделей</span>
               </button>
             </li>
           </ul>
         </div>
 
-        <div>
-          <label for="book-note" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Пожелания (необязательно)</label>
-          <textarea
-            id="book-note"
-            v-model="note"
-            rows="2"
-            class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
-            placeholder="Пожелания для мастера"
-          />
+        <div class="space-y-2">
+          <span class="block text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Дизайн</span>
+          <div class="flex rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5">
+            <button
+              type="button"
+              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
+              :class="!designByReference ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              @click="designByReference = false"
+            >
+              Дизайн от мастера
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
+              :class="designByReference ? 'bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]' : 'text-[var(--tg-theme-text-color,#000)]'"
+              @click="designByReference = true"
+            >
+              Дизайн по референсу
+            </button>
+          </div>
         </div>
 
-        <div>
-          <label for="book-ref" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Ссылка на фото (необязательно)</label>
-          <input
-            id="book-ref"
-            v-model="referenceImageUrl"
-            type="url"
-            class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
-            placeholder="https://..."
-          >
-        </div>
+        <template v-if="designByReference">
+          <div>
+            <label for="book-note" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Пожелания</label>
+            <textarea
+              id="book-note"
+              v-model="note"
+              rows="3"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+              placeholder="Опишите пожелания к дизайну"
+            />
+          </div>
+          <div>
+            <label for="book-ref" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Ссылка на референс (мудборд / дизайн)</label>
+            <input
+              id="book-ref"
+              v-model="referenceImageUrl"
+              type="url"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+              placeholder="https://..."
+            >
+          </div>
+        </template>
       </div>
 
       <button
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
-        :disabled="!selectedMasterId || !selectedServiceId || !selectedSlot || submitting"
+        :disabled="!selectedMasterId || (!forModelsMode && !selectedServiceId) || !selectedSlot || submitting"
         @click="submit"
       >
         {{ submitting ? 'Записываю…' : 'Записаться' }}

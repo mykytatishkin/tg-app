@@ -35,12 +35,12 @@ export class Appointment {
   @JoinColumn({ name: 'clientId' })
   client: Client;
 
-  @Column({ type: 'varchar' })
-  serviceId: string;
+  @Column({ type: 'varchar', nullable: true })
+  serviceId: string | null;
 
-  @ManyToOne(() => Service, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Service, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'serviceId' })
-  service: Service;
+  service: Service | null;
 
   @Column({ type: 'varchar', nullable: true })
   slotId: string | null;
@@ -79,6 +79,10 @@ export class Appointment {
 
   @Column({ type: 'varchar', nullable: true })
   referenceImageUrl: string | null;
+
+  /** Final price set by master (e.g. for "by reference" design). */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  finalPrice: number | null;
 
   @Column({ type: 'boolean', default: false })
   withDiscount: boolean;

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty, IsInt, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsInt, IsNumber, Min, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateServiceDto {
@@ -17,4 +17,9 @@ export class CreateServiceDto {
   @Min(0)
   @Type(() => Number)
   price?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  forModels?: boolean;
 }

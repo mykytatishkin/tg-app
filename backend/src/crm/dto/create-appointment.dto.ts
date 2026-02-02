@@ -48,4 +48,9 @@ export class CreateAppointmentDto {
   @IsNumber()
   @Type(() => Number)
   discountPercent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  finalPrice?: number;
 }
