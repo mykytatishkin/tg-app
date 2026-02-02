@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNotEmpty, IsNumber, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateAvailabilityDto {
@@ -28,4 +28,10 @@ export class CreateAvailabilityDto {
   @IsBoolean()
   @Type(() => Boolean)
   forModels?: boolean;
+
+  /** Required when forModels=true: service tied to this slot, client cannot change. */
+  @ValidateIf((o) => o.forModels === true)
+  @IsString()
+  @IsNotEmpty()
+  serviceId?: string;
 }

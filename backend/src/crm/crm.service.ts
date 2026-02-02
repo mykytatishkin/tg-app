@@ -46,6 +46,27 @@ export class CrmService {
     return master.id;
   }
 
+  /** Collect all telegramIds to notify about new discounts: clients + registered users (who opened the app). */
+  private async getTelegramIdsForDiscountNotification(masterId: string): Promise<string[]> {
+    const clients = await this.clientRepo.find({
+      where: { masterId },
+      select: ['telegramId'],
+    });
+    const fromClients = clients.map((c) => c.telegramId?.trim()).filter(Boolean) as string[];
+    const clientSet = new Set(fromClients);
+    const registered = await this.userRepo.find({
+      where: { isMaster: false, isAdmin: false },
+      select: ['telegramId'],
+    });
+    const fromUsers = registered
+      .map((u) => u.telegramId?.trim())
+      .filter((id): id is string => Boolean(id) && !clientSet.has(id));
+    return [...fromClients, ...fromUsers];
+  }
+
+  /** Id prefix for "user-only" entries (registered but never booked). */
+  private static readonly USER_ONLY_PREFIX = 'u-';
+
   async getClients(user: User) {
     const masterId = await this.getMasterId(user);
     const clients = await this.clientRepo.find({
@@ -53,7 +74,15 @@ export class CrmService {
       order: { name: 'ASC' },
       relations: ['appointments'],
     });
-    return clients.map((c) => {
+    const clientTelegramIds = new Set(clients.map((c) => c.telegramId).filter(Boolean));
+    const registeredOnly = await this.userRepo.find({
+      where: { isMaster: false, isAdmin: false },
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+    const registeredOnlyForMaster = registeredOnly.filter(
+      (u) => u.telegramId && !clientTelegramIds.has(u.telegramId),
+    );
+    const list = clients.map((c) => {
       const doneOrScheduled = (c.appointments || []).filter(
         (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
       );
@@ -71,6 +100,27 @@ export class CrmService {
         lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       };
     });
+    for (const u of registeredOnlyForMaster) {
+      const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || 'Без имени';
+      list.push({
+        id: `${CrmService.USER_ONLY_PREFIX}${u.id}`,
+        name,
+        telegramId: u.telegramId,
+        username: u.username,
+        instagram: null,
+        phone: u.phone,
+        notes: null,
+        masterNickname: null,
+        lastReminderSentAt: null,
+        masterId,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+        visitCount: 0,
+        lastVisitAt: null,
+      });
+    }
+    list.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    return list;
   }
 
   async createClient(user: User, dto: CreateClientDto) {
@@ -81,6 +131,40 @@ export class CrmService {
 
   async getClient(user: User, id: string) {
     const masterId = await this.getMasterId(user);
+    if (id.startsWith(CrmService.USER_ONLY_PREFIX)) {
+      const userId = id.slice(CrmService.USER_ONLY_PREFIX.length);
+      const u = await this.userRepo.findOne({
+        where: { id: userId, isMaster: false, isAdmin: false },
+      });
+      if (!u?.telegramId) throw new ForbiddenException('Client not found');
+      const hasClient = await this.clientRepo.findOne({
+        where: { masterId, telegramId: u.telegramId },
+      });
+      if (hasClient) throw new ForbiddenException('Client not found');
+      const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || 'Без имени';
+      return {
+        id: `${CrmService.USER_ONLY_PREFIX}${u.id}`,
+        name,
+        telegramId: u.telegramId,
+        username: u.username,
+        instagram: null,
+        phone: u.phone,
+        notes: null,
+        masterNickname: null,
+        lastReminderSentAt: null,
+        masterId,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+        stats: {
+          totalVisits: 0,
+          lastVisitAt: null,
+          byService: [],
+          favoriteWeekdays: [],
+          favoriteTimeRanges: [],
+        },
+        recentAppointments: [],
+      };
+    }
     const client = await this.clientRepo.findOne({
       where: { id, masterId },
       relations: ['appointments', 'appointments.service'],
@@ -155,6 +239,34 @@ export class CrmService {
 
   async updateClient(user: User, id: string, dto: UpdateClientDto) {
     const masterId = await this.getMasterId(user);
+    if (id.startsWith(CrmService.USER_ONLY_PREFIX)) {
+      const userId = id.slice(CrmService.USER_ONLY_PREFIX.length);
+      const u = await this.userRepo.findOne({
+        where: { id: userId, isMaster: false, isAdmin: false },
+      });
+      if (!u?.telegramId) throw new ForbiddenException('Client not found');
+      let client = await this.clientRepo.findOne({
+        where: { masterId, telegramId: u.telegramId },
+      });
+      if (!client) {
+        const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || dto.name ?? 'Без имени';
+        client = this.clientRepo.create({
+          masterId,
+          name: dto.name ?? name,
+          telegramId: u.telegramId,
+          username: dto.username ?? u.username,
+          phone: dto.phone ?? u.phone,
+          instagram: dto.instagram ?? null,
+          notes: dto.notes ?? null,
+          masterNickname: dto.masterNickname ?? null,
+        });
+        await this.clientRepo.save(client);
+      }
+      if (Object.keys(dto).length > 0) {
+        await this.clientRepo.update({ id: client.id, masterId }, dto);
+      }
+      return this.getClient(user, client.id);
+    }
     await this.clientRepo.update({ id, masterId }, dto);
     return this.getClient(user, id);
   }
@@ -165,6 +277,11 @@ export class CrmService {
     clientId: string,
     type: 'simple' | 'smart',
   ): Promise<{ sent: boolean; message?: string }> {
+    if (clientId.startsWith(CrmService.USER_ONLY_PREFIX)) {
+      throw new BadRequestException(
+        'У этого пользователя ещё не было записей. Сохраните карточку клиента или дождитесь первой записи, затем можно отправить напоминание.',
+      );
+    }
     const clientData = await this.getClient(user, clientId);
     if (!clientData.telegramId?.trim()) {
       throw new BadRequestException('У клиента не указан Telegram — напоминание отправить нельзя.');
@@ -231,6 +348,7 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     const qb = this.slotRepo
       .createQueryBuilder('slot')
+      .leftJoinAndSelect('slot.service', 'service')
       .where('slot.masterId = :masterId', { masterId })
       .orderBy('slot.date', 'ASC')
       .addOrderBy('slot.startTime', 'ASC');
@@ -277,12 +395,35 @@ export class CrmService {
         );
       }
     }
+    if (dto.forModels === true) {
+      if (!dto.serviceId?.trim()) {
+        throw new BadRequestException('Для слота «для моделей» укажите услугу');
+      }
+      const service = await this.serviceRepo.findOne({
+        where: { id: dto.serviceId.trim(), masterId, forModels: true },
+      });
+      if (!service) {
+        throw new BadRequestException('Услуга не найдена или не для моделей');
+      }
+    }
     const slot = this.slotRepo.create({
       ...dto,
       masterId,
       isAvailable: dto.isAvailable ?? true,
+      serviceId: dto.forModels && dto.serviceId ? dto.serviceId.trim() : null,
     });
-    return this.slotRepo.save(slot);
+    const saved = await this.slotRepo.save(slot);
+    const hasNewDiscount =
+      saved.priceModifier != null && Number(saved.priceModifier) < 0;
+    if (hasNewDiscount) {
+      const telegramIds = await this.getTelegramIdsForDiscountNotification(masterId);
+      if (telegramIds.length > 0) {
+        this.botService.notifyAllAboutNewDiscounts(telegramIds).catch((err) => {
+          console.error('Notify about new discount error:', err);
+        });
+      }
+    }
+    return saved;
   }
 
   async updateAvailability(user: User, id: string, dto: UpdateAvailabilityDto) {
@@ -311,8 +452,40 @@ export class CrmService {
         );
       }
     }
-    await this.slotRepo.update({ id, masterId }, dto);
-    return this.slotRepo.findOne({ where: { id, masterId } });
+    const forModels = dto.forModels ?? slot.forModels;
+    if (forModels === true) {
+      const serviceId = dto.serviceId ?? slot.serviceId;
+      if (!serviceId?.trim()) {
+        throw new BadRequestException('Для слота «для моделей» укажите услугу');
+      }
+      const service = await this.serviceRepo.findOne({
+        where: { id: serviceId.trim(), masterId, forModels: true },
+      });
+      if (!service) {
+        throw new BadRequestException('Услуга не найдена или не для моделей');
+      }
+    }
+    const oldPriceModifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
+    const hadDiscount = oldPriceModifier != null && oldPriceModifier < 0;
+
+    const updateData = { ...dto };
+    if (forModels !== true) updateData.serviceId = null;
+    else if (dto.serviceId) updateData.serviceId = dto.serviceId.trim();
+    await this.slotRepo.update({ id, masterId }, updateData);
+    const updated = await this.slotRepo.findOne({ where: { id, masterId } });
+    const newPriceModifier =
+      updated?.priceModifier != null ? Number(updated.priceModifier) : null;
+    const hasNewDiscount =
+      !hadDiscount && newPriceModifier != null && newPriceModifier < 0;
+    if (hasNewDiscount) {
+      const telegramIds = await this.getTelegramIdsForDiscountNotification(masterId);
+      if (telegramIds.length > 0) {
+        this.botService.notifyAllAboutNewDiscounts(telegramIds).catch((err) => {
+          console.error('Notify about new discount error:', err);
+        });
+      }
+    }
+    return updated;
   }
 
   async deleteAvailability(user: User, id: string) {

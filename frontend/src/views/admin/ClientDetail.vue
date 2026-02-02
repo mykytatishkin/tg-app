@@ -69,7 +69,11 @@ async function save() {
       notes: editForm.value.notes || undefined,
       masterNickname: editForm.value.masterNickname || undefined,
     };
-    await api.put(`/crm/clients/${id.value}`, payload);
+    const res = await api.put(`/crm/clients/${id.value}`, payload);
+    if (res?.id && res.id !== id.value && !String(res.id).startsWith('u-')) {
+      router.replace(`/admin/clients/${res.id}`);
+      return;
+    }
     await load();
     editing.value = false;
   } catch (e) {
@@ -152,7 +156,7 @@ onMounted(load);
             Редактировать
           </button>
         </div>
-        <div v-if="client.telegramId && !editing" class="mt-4 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)] flex flex-wrap gap-2">
+        <div v-if="client.telegramId && !editing && !String(client.id).startsWith('u-')" class="mt-4 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)] flex flex-wrap gap-2">
           <button
             type="button"
             class="px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-50"
@@ -170,6 +174,9 @@ onMounted(load);
             {{ reminderSending === 'smart' ? 'Отправка…' : 'Отправить подходящее расписание' }}
           </button>
         </div>
+        <p v-else-if="client.telegramId && !editing && String(client.id).startsWith('u-')" class="mt-4 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-sm text-[var(--tg-theme-hint-color,#999)]">
+          Зарегистрирован, записей ещё не было. Сохраните карточку или дождитесь первой записи — тогда можно будет отправить напоминание.
+        </p>
         <p v-if="reminderMessage" class="mt-2 text-sm text-[var(--tg-theme-hint-color,#999)]">{{ reminderMessage }}</p>
       </div>
 

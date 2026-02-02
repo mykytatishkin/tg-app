@@ -13,8 +13,6 @@ const masters = ref([]);
 const selectedMasterId = ref('');
 const services = ref([]);
 const selectedServiceId = ref('');
-const modelServices = ref([]);
-const loadingModelServices = ref(false);
 const slots = ref([]);
 const selectedSlot = ref(null);
 /** false = Дизайн от мастера, true = Дизайн по референсу */
@@ -51,12 +49,13 @@ function formatMasterName(m) {
   return [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Мастер';
 }
 
-function formatSlotLabel(slot) {
+function formatSlotLabel(slot, forModels = false) {
   const d = new Date(slot.date + 'T12:00:00');
   const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', weekday: 'short' });
   const start = slot.startTime?.slice(0, 5) ?? '';
   const end = slot.endTime?.slice(0, 5) ?? '';
   let label = end ? `${dateStr}, ${start} – ${end}` : `${dateStr}, ${start}`;
+  if (forModels && slot.serviceName) label += ` · ${slot.serviceName}`;
   const mod = slot.priceModifier != null && !Number.isNaN(Number(slot.priceModifier)) ? Number(slot.priceModifier) : null;
   if (mod !== null && mod !== 0) {
     label += mod < 0 ? ` · −${Math.abs(mod)} €` : ` · +${mod} €`;
@@ -110,25 +109,6 @@ async function loadServices() {
   }
 }
 
-async function loadModelServices() {
-  if (!selectedMasterId.value) {
-    modelServices.value = [];
-    return;
-  }
-  loadingModelServices.value = true;
-  modelServices.value = [];
-  error.value = null;
-  try {
-    modelServices.value = await api.get(
-      `/appointments/services?masterId=${encodeURIComponent(selectedMasterId.value)}&forModels=true`
-    );
-  } catch (e) {
-    error.value = e.message;
-  } finally {
-    loadingModelServices.value = false;
-  }
-}
-
 async function loadSlots() {
   if (!selectedMasterId.value) {
     slots.value = [];
@@ -138,6 +118,7 @@ async function loadSlots() {
     slots.value = [];
     return;
   }
+  // For forModels: no service selection needed, slots already have service from master
   loadingSlots.value = true;
   slots.value = [];
   selectedSlot.value = null;
@@ -167,7 +148,6 @@ async function loadSlots() {
 
 function onMasterChange() {
   if (forModelsMode.value) {
-    loadModelServices();
     loadSlots();
   } else {
     loadServices();
@@ -203,7 +183,8 @@ async function submit() {
       note: designByReference.value ? (note.value || undefined) : undefined,
       referenceImageUrl: designByReference.value ? (referenceImageUrl.value || undefined) : undefined,
     };
-    if (selectedServiceId.value) payload.serviceId = selectedServiceId.value;
+    // For forModels: service comes from slot (master's choice), client cannot change
+    if (!forModelsMode.value && selectedServiceId.value) payload.serviceId = selectedServiceId.value;
     const appointment = await api.post('/appointments/book', payload);
     hapticFeedback?.('success');
     router.push({ name: 'BookingSuccess', query: { id: appointment.id } });
@@ -224,10 +205,7 @@ function onBookingModeChange() {
   selectedSlot.value = null;
   slots.value = [];
   if (forModelsMode.value) {
-    if (selectedMasterId.value) {
-      loadModelServices();
-      loadSlots();
-    }
+    if (selectedMasterId.value) loadSlots();
   } else {
     if (selectedMasterId.value) loadServices();
   }
@@ -336,21 +314,13 @@ watch(slots, (newSlots) => {
           </select>
         </div>
 
-        <div v-if="forModelsMode && selectedMasterId">
-          <label for="book-model-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга (для моделей)</label>
-          <div v-if="loadingModelServices" class="text-[var(--tg-theme-hint-color,#999)] text-sm">Загрузка…</div>
-          <select
-            v-else
-            id="book-model-service"
-            v-model="selectedServiceId"
-            class="w-full p-3 rounded-lg bg-neutral-700/50 border border-neutral-600"
-          >
-            <option value="">Выберите услугу для моделей</option>
-            <option v-for="s in modelServices" :key="s.id" :value="s.id">
-              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + '+ €' : '' }}
-            </option>
-          </select>
-          <p v-if="!loadingModelServices && modelServices.length === 0" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Нет услуг для моделей. Можно записаться без выбора услуги.</p>
+        <div v-if="forModelsMode && selectedMasterId" class="mb-2">
+          <p v-if="!selectedSlot" class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+            Выберите время — услуга указана мастером в слоте.
+          </p>
+          <p v-else-if="selectedSlot?.serviceName" class="text-sm font-medium text-[var(--tg-theme-text-color,#e8e8e8)]">
+            Услуга: {{ selectedSlot.serviceName }}
+          </p>
         </div>
         <div v-if="!forModelsMode && selectedServiceId" class="space-y-1">
           <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">
@@ -378,14 +348,13 @@ watch(slots, (newSlots) => {
                     : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
                 @click="selectSlot(slot)"
               >
-                {{ formatSlotLabel(slot) }}
-                <span v-if="forModelsMode" class="ml-1 text-neutral-400 font-medium">Для моделей</span>
+                {{ formatSlotLabel(slot, forModelsMode) }}
               </button>
             </li>
           </ul>
         </div>
 
-        <div class="space-y-2">
+        <div v-if="!forModelsMode" class="space-y-2">
           <span class="block text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Дизайн</span>
           <div class="flex rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5">
             <button
@@ -407,7 +376,7 @@ watch(slots, (newSlots) => {
           </div>
         </div>
 
-        <template v-if="designByReference">
+        <template v-if="!forModelsMode && designByReference">
           <div>
             <label for="book-note" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Пожелания</label>
             <textarea

@@ -433,6 +433,22 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /** Notify multiple users about new discount slots: message + "Записаться" button. Skips users who blocked the bot. */
+  async notifyAllAboutNewDiscounts(telegramIds: string[]): Promise<void> {
+    const appUrl = this.configService.get<string>('MINI_APP_URL');
+    if (!appUrl || !this.bot) return;
+    const bookUrl = `${appUrl.replace(/\/$/, '')}/appointments/book`;
+    const text =
+      '✨ Появились новые места со скидкой! Записаться можно в разделе «Скидки» или по кнопке ниже.';
+    const sent = new Set<string>();
+    for (const tgId of telegramIds) {
+      const id = tgId?.trim();
+      if (!id || sent.has(id)) continue;
+      const ok = await this.sendMessageWithWebAppButton(id, text, 'Записаться', bookUrl);
+      if (ok) sent.add(id);
+    }
+  }
+
   /** Request feedback from client after session: "Оцените сеанс 1–5 звёзд" + inline buttons. */
   async sendFeedbackRequest(
     chatId: string,

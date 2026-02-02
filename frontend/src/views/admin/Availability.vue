@@ -25,7 +25,8 @@ const slots = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showForm = ref(false);
-const form = ref({ date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false });
+const form = ref({ date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false, serviceId: '' });
+const modelServices = ref([]);
 const submitting = ref(false);
 const deletingId = ref(null);
 const lastAdded = ref(null);
@@ -52,25 +53,41 @@ function openFormWithSameDate() {
     endTime: getDefaultEndTime(nextStart).slice(0, 5),
     priceModifier: '',
     forModels: false,
+    serviceId: '',
   };
   showForm.value = true;
   lastAdded.value = null;
+  if (form.value.forModels) loadModelServices();
 }
 
 function openNewForm() {
   const today = new Date().toISOString().slice(0, 10);
-  form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5), priceModifier: '', forModels: false };
+  form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5), priceModifier: '', forModels: false, serviceId: '' };
   showForm.value = true;
   lastAdded.value = null;
+  if (form.value.forModels) loadModelServices();
 }
 
 function onFormStartTimeChange() {
   form.value.endTime = getDefaultEndTime(form.value.startTime).slice(0, 5);
 }
 
+async function loadModelServices() {
+  try {
+    const all = await api.get('/crm/services');
+    modelServices.value = (all || []).filter((s) => s.forModels);
+  } catch {
+    modelServices.value = [];
+  }
+}
+
 async function addSlot() {
   if (!form.value.date || !form.value.startTime || !form.value.endTime) {
     error.value = 'Укажите дату, начало и конец.';
+    return;
+  }
+  if (form.value.forModels && !form.value.serviceId) {
+    error.value = 'Для слота «для моделей» выберите услугу.';
     return;
   }
   const startTime = form.value.startTime.length === 5 ? form.value.startTime + ':00' : form.value.startTime;
@@ -87,11 +104,12 @@ async function addSlot() {
       isAvailable: true,
       ...(priceModifier != null && !Number.isNaN(priceModifier) ? { priceModifier } : {}),
       forModels: !!form.value.forModels,
+      ...(form.value.forModels && form.value.serviceId ? { serviceId: form.value.serviceId } : {}),
     });
     hapticFeedback?.('light');
     lastAdded.value = { date: form.value.date, endTime };
     showForm.value = false;
-    form.value = { date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false };
+    form.value = { date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false, serviceId: '' };
     await load();
   } catch (e) {
     error.value = e.message;
@@ -192,14 +210,29 @@ onMounted(load);
         <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минус — скидка, плюс — доплата. Пусто — без изменения цены.</p>
       </div>
       <label class="flex items-center gap-2 cursor-pointer">
-        <input v-model="form.forModels" type="checkbox" class="rounded">
+        <input v-model="form.forModels" type="checkbox" class="rounded" @change="form.forModels ? loadModelServices() : (form.serviceId = '')">
         <span class="text-sm">Для моделей</span>
       </label>
+      <div v-if="form.forModels">
+        <label for="slot-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга (клиент её не меняет)</label>
+        <select
+          id="slot-service"
+          v-model="form.serviceId"
+          required
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+        >
+          <option value="">Выберите услугу</option>
+          <option v-for="s in modelServices" :key="s.id" :value="s.id">
+            {{ s.name }} · {{ s.durationMinutes }} min
+          </option>
+        </select>
+        <p v-if="modelServices.length === 0" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Нет услуг для моделей. Создайте в «Услуги» и включите «Для моделей».</p>
+      </div>
       <div class="flex gap-2">
         <button
           type="button"
           class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
-          :disabled="submitting"
+          :disabled="submitting || (form.forModels && !form.serviceId)"
           @click="addSlot"
         >
           {{ submitting ? 'Добавляю…' : 'Добавить' }}
@@ -231,6 +264,9 @@ onMounted(load);
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
             </span>
             <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+          </div>
+          <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
+            Процедура: {{ s.service.name }}
           </div>
         </div>
         <button
