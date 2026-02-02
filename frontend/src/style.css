@@ -128,3 +128,16 @@ input, textarea {
 #app > div {
   background-color: transparent !important;
 }
+
+/* Иконки в навигации: белый фон сливается с фоном (как прозрачный) */
+.nav-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-icon {
+  height: 1.75rem;
+  width: 1.75rem;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}

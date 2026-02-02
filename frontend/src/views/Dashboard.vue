@@ -11,20 +11,20 @@ const { hapticFeedback } = useTelegramWebApp();
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
 
 const adminNavItems = [
-  { path: '/admin/clients', label: 'Клиенты', icon: '👥' },
-  { path: '/admin/stats', label: 'Статистика', icon: '📊' },
-  { path: '/admin/services', label: 'Услуги', icon: '💅' },
-  { path: '/admin/appointments', label: 'Записи', icon: '📅' },
+  { path: '/admin/clients', label: 'Клиенты', icon: '/icons/clients.png' },
+  { path: '/admin/stats', label: 'Статистика', icon: '/icons/stats.png' },
+  { path: '/admin/services', label: 'Услуги', icon: '/icons/services.png' },
+  { path: '/admin/appointments', label: 'Записи', icon: '/icons/appointments.png' },
   { path: '/admin/availability', label: 'Доступность', icon: '🕐' },
-  { path: '/admin/drinks', label: 'Напитки', icon: '☕' },
-  { path: '/giveaways', label: 'Розыгрыши', icon: '🎁' },
+  { path: '/admin/drinks', label: 'Напитки', icon: '/icons/drinks.png' },
+  { path: '/giveaways', label: 'Розыгрыши', icon: '/icons/giveaways.png' },
 ];
 
 const userNavItems = [
-  { path: '/appointments', label: 'Мои записи', icon: '📅' },
+  { path: '/appointments', label: 'Мои записи', icon: '/icons/appointments.png' },
   { path: '/appointments/book', label: 'Записаться', icon: '➕' },
   { path: '/promo', label: 'Актуальные акции', icon: '🏷️' },
-  { path: '/giveaways', label: 'Розыгрыши', icon: '🎁' },
+  { path: '/giveaways', label: 'Розыгрыши', icon: '/icons/giveaways.png' },
 ];
 
 function goTo(path) {
@@ -56,7 +56,10 @@ function handleLogout() {
           class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] text-left"
           @click="goTo(item.path)"
         >
-          <span class="text-2xl">{{ item.icon }}</span>
+          <span class="nav-icon-wrap text-2xl">
+            <img v-if="item.icon.startsWith('/')" :src="item.icon" :alt="item.label" class="nav-icon" />
+            <span v-else>{{ item.icon }}</span>
+          </span>
           <span class="font-medium">{{ item.label }}</span>
         </button>
       </template>
@@ -67,7 +70,10 @@ function handleLogout() {
           class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] text-left"
           @click="goTo(item.path)"
         >
-          <span class="text-2xl">{{ item.icon }}</span>
+          <span class="nav-icon-wrap text-2xl">
+            <img v-if="item.icon.startsWith('/')" :src="item.icon" :alt="item.label" class="nav-icon" />
+            <span v-else>{{ item.icon }}</span>
+          </span>
           <span class="font-medium">{{ item.label }}</span>
         </button>
       </template>

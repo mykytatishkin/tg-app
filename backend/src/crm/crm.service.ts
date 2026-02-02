@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
@@ -181,8 +181,44 @@ export class CrmService {
     return qb.getMany();
   }
 
+  /** Преобразует время "HH:MM" или "HH:MM:SS" в минуты от полуночи. */
+  private timeToMinutes(t: string): number {
+    const parts = String(t ?? '').trim().split(':').map(Number);
+    const h = parts[0] ?? 0;
+    const m = parts[1] ?? 0;
+    return h * 60 + m;
+  }
+
+  /** Проверяет, пересекаются ли два интервала [start1,end1] и [start2,end2] (в минутах). */
+  private timeRangesOverlap(
+    start1: number,
+    end1: number,
+    start2: number,
+    end2: number,
+  ): boolean {
+    return start1 < end2 && start2 < end1;
+  }
+
   async createAvailability(user: User, dto: CreateAvailabilityDto) {
     const masterId = await this.getMasterId(user);
+    const startMin = this.timeToMinutes(dto.startTime);
+    const endMin = this.timeToMinutes(dto.endTime);
+    if (startMin >= endMin) {
+      throw new BadRequestException('Время начала должно быть раньше времени окончания');
+    }
+    const existing = await this.slotRepo.find({
+      where: { masterId, date: dto.date },
+      select: ['id', 'startTime', 'endTime'],
+    });
+    for (const s of existing) {
+      const sStart = this.timeToMinutes(s.startTime);
+      const sEnd = this.timeToMinutes(s.endTime);
+      if (this.timeRangesOverlap(startMin, endMin, sStart, sEnd)) {
+        throw new BadRequestException(
+          'Этот промежуток пересекается с уже существующим слотом на эту дату',
+        );
+      }
+    }
     const slot = this.slotRepo.create({
       ...dto,
       masterId,
@@ -193,6 +229,30 @@ export class CrmService {
 
   async updateAvailability(user: User, id: string, dto: UpdateAvailabilityDto) {
     const masterId = await this.getMasterId(user);
+    const slot = await this.slotRepo.findOne({ where: { id, masterId } });
+    if (!slot) throw new ForbiddenException('Slot not found');
+    const date = dto.date ?? slot.date;
+    const startTime = dto.startTime ?? slot.startTime;
+    const endTime = dto.endTime ?? slot.endTime;
+    const startMin = this.timeToMinutes(startTime);
+    const endMin = this.timeToMinutes(endTime);
+    if (startMin >= endMin) {
+      throw new BadRequestException('Время начала должно быть раньше времени окончания');
+    }
+    const existing = await this.slotRepo.find({
+      where: { masterId, date },
+      select: ['id', 'startTime', 'endTime'],
+    });
+    for (const s of existing) {
+      if (s.id === id) continue;
+      const sStart = this.timeToMinutes(s.startTime);
+      const sEnd = this.timeToMinutes(s.endTime);
+      if (this.timeRangesOverlap(startMin, endMin, sStart, sEnd)) {
+        throw new BadRequestException(
+          'Этот промежуток пересекается с уже существующим слотом на эту дату',
+        );
+      }
+    }
     await this.slotRepo.update({ id, masterId }, dto);
     return this.slotRepo.findOne({ where: { id, masterId } });
   }
