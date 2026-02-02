@@ -66,7 +66,7 @@ export class AppointmentsService {
     return this.appointmentRepo.find({
       where: { clientId: client.id },
       relations: ['service'],
-      order: { date: 'ASC', startTime: 'ASC' },
+      order: { date: 'DESC', startTime: 'DESC' },
     });
   }
 
