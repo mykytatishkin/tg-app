@@ -1,10 +1,11 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 
 const router = useRouter();
+const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
 
 const forModelsMode = ref(false);
@@ -232,9 +233,16 @@ function onBookingModeChange() {
   }
 }
 
+const preselectedDate = ref(route.query.date ? String(route.query.date).trim() : '');
+const preselectedMasterId = ref(route.query.masterId ? String(route.query.masterId).trim() : '');
+
 onMounted(async () => {
   await loadMasters();
-  if (selectedMasterId.value && !forModelsMode.value) await loadServices();
+  if (preselectedMasterId.value && masters.value.some((m) => m.id === preselectedMasterId.value)) {
+    selectedMasterId.value = preselectedMasterId.value;
+  } else if (selectedMasterId.value && !forModelsMode.value) {
+    await loadServices();
+  }
 });
 
 watch(selectedMasterId, () => {
@@ -244,6 +252,13 @@ watch(selectedMasterId, () => {
 watch(selectedServiceId, () => {
   if (selectedMasterId.value && !forModelsMode.value) loadSlots();
 });
+
+watch(slots, (newSlots) => {
+  if (preselectedDate.value && newSlots.length && !selectedSlot.value) {
+    const slot = newSlots.find((s) => s.date === preselectedDate.value);
+    if (slot) selectedSlot.value = slot;
+  }
+}, { deep: true });
 </script>
 
 <template>

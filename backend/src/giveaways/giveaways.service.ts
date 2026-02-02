@@ -4,16 +4,22 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Giveaway, GiveawayStatus } from './entities/giveaway.entity';
 import { GiveawayParticipant } from './entities/giveaway-participant.entity';
 import { GiveawayWinner } from './entities/giveaway-winner.entity';
 import { User } from '../auth/entities/user.entity';
+import { Client } from '../crm/entities/client.entity';
 import { CreateGiveawayDto } from './dto/create-giveaway.dto';
 import { UpdateGiveawayDto } from './dto/update-giveaway.dto';
 import { DrawGiveawayDto } from './dto/draw-giveaway.dto';
 import { BotService } from '../bot/bot.service';
+
+function escapeGiveawayTitle(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 @Injectable()
 export class GiveawaysService {
@@ -26,7 +32,10 @@ export class GiveawaysService {
     private winnerRepo: Repository<GiveawayWinner>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(Client)
+    private clientRepo: Repository<Client>,
     private botService: BotService,
+    private configService: ConfigService,
   ) {}
 
   private async getMasterId(user: User): Promise<string> {
@@ -93,10 +102,41 @@ export class GiveawaysService {
     const masterId = await this.getMasterId(user);
     const existing = await this.giveawayRepo.findOne({ where: { id, masterId } });
     if (!existing) throw new ForbiddenException('Giveaway not found');
+    const wasActive = existing.status === GiveawayStatus.ACTIVE;
     if (dto.startAt) (dto as any).startAt = new Date(dto.startAt);
     if (dto.endAt) (dto as any).endAt = new Date(dto.endAt);
     await this.giveawayRepo.update({ id, masterId }, dto);
+    const becameActive = dto.status === GiveawayStatus.ACTIVE && !wasActive;
+    if (becameActive) {
+      await this.notifyClientsAboutGiveaway(id, masterId);
+    }
     return this.getGiveaway(user, id);
+  }
+
+  /** Notify all master's clients with telegramId about the published giveaway. */
+  private async notifyClientsAboutGiveaway(giveawayId: string, masterId: string): Promise<void> {
+    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId } });
+    if (!giveaway) return;
+    const appUrl = this.configService.get<string>('MINI_APP_URL');
+    if (!appUrl) return;
+    const giveawaysUrl = `${appUrl.replace(/\/$/, '')}/giveaways`;
+    const clients = await this.clientRepo.find({
+      where: { masterId },
+      select: ['telegramId'],
+    });
+    const sentTgIds = new Set<string>();
+    const text = `🎉 Новый розыгрыш: <b>${escapeGiveawayTitle(giveaway.title)}</b>. Перейдите по ссылке, чтобы принять участие!`;
+    for (const c of clients) {
+      const tgId = c.telegramId?.trim();
+      if (!tgId || sentTgIds.has(tgId)) continue;
+      const sent = await this.botService.sendMessageWithWebAppButton(
+        tgId,
+        text,
+        'Участвовать в розыгрыше',
+        giveawaysUrl,
+      );
+      if (sent) sentTgIds.add(tgId);
+    }
   }
 
   async deleteGiveaway(user: User, id: string) {

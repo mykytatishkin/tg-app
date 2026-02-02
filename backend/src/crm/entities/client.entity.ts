@@ -25,6 +25,10 @@ export class Client {
   @Column({ type: 'varchar', nullable: true })
   username: string | null;
 
+  /** Instagram username or profile URL (no login required). */
+  @Column({ type: 'varchar', nullable: true })
+  instagram: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   phone: string | null;
 

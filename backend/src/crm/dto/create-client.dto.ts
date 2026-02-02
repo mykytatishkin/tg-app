@@ -15,6 +15,10 @@ export class CreateClientDto {
 
   @IsString()
   @IsOptional()
+  instagram?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
 
   @IsString()

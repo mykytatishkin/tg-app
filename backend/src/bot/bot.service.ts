@@ -97,7 +97,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         .setChatMenuButton({
           menuButton: {
             type: 'web_app',
-            text: 'Открыть приложение',
+            text: 'открыть запись',
             web_app: { url: appUrl },
           },
         })
@@ -107,15 +107,15 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.bot.start((ctx) => {
       const url = appUrl || 'https://example.com';
       return ctx.reply(
-        'Привет! Выберите действие:',
+        'приветик! предлагаю тебе записаться ко мне либо подписаться на мой инстаграм <3',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Пройти тест', 'start_quick_test')],
-          [Markup.button.webApp('Открыть приложение', url)],
+          [Markup.button.webApp('открыть запись', url)],
+          [Markup.button.url('Инстаграм @murrnails_', 'https://instagram.com/murrnails_')],
         ]),
       );
     });
 
-    // Кнопка «Пройти тест» при /start
+    // Резервный обработчик для старой кнопки «Пройти тест»
     this.bot.action('start_quick_test', async (ctx) => {
       await ctx.answerCbQuery();
       const key = getSessionKey(ctx);
@@ -247,7 +247,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Напоминание клиенту за 5–10 мин: «У вас скоро сеанс, желаете что-то выпить?» + кнопки напитков. */
+  /** Напоминание клиенту за 5–10 мин: «приветик! у тебя скоро запись, будешь что-то пить?» + кнопки напитков. */
   async sendDrinkReminderToClient(
     chatId: string,
     appointmentId: string,
@@ -258,7 +258,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       const rows = drinkOptions.map((label, idx) => [
         Markup.button.callback(label, `${DRINK_CB_PREFIX}${appointmentId}|${idx}`),
       ]);
-      await this.bot.telegram.sendMessage(chatId, 'У вас скоро сеанс, желаете что-то выпить?', {
+      await this.bot.telegram.sendMessage(chatId, 'приветик! у тебя скоро запись, будешь что-то пить?', {
         reply_markup: { inline_keyboard: rows },
       });
       return true;
@@ -286,6 +286,30 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return true;
     } catch (err) {
       console.error('Bot sendMessageWithWebAppButton error:', err);
+      return false;
+    }
+  }
+
+  /** Send a message with multiple Web App buttons (e.g. suggested slot times). Up to 2 buttons per row. */
+  async sendMessageWithWebAppButtons(
+    chatId: string,
+    text: string,
+    buttons: { label: string; url: string }[],
+  ): Promise<boolean> {
+    if (!this.bot || !buttons.length) return false;
+    try {
+      const rows: { text: string; web_app: { url: string } }[][] = [];
+      for (let i = 0; i < buttons.length; i += 2) {
+        const pair = buttons.slice(i, i + 2).map((b) => ({ text: b.label, web_app: { url: b.url } }));
+        rows.push(pair);
+      }
+      await this.bot.telegram.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: rows },
+      });
+      return true;
+    } catch (err) {
+      console.error('Bot sendMessageWithWebAppButtons error:', err);
       return false;
     }
   }

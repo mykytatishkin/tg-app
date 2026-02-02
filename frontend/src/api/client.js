@@ -12,6 +12,9 @@ export async function apiRequest(path, options = {}) {
 
   const url = getApiUrl(path);
   const headers = getAuthHeaders();
+  if (options.body != null && typeof options.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const res = await fetch(url, {
     ...options,

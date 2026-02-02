@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -37,6 +38,16 @@ export class AppointmentsController {
   @Get('mine')
   getMine(@Request() req: { user: User }) {
     return this.appointmentsService.getMine(req.user);
+  }
+
+  @Get('profile')
+  getMyProfile(@Request() req: { user: User }) {
+    return this.appointmentsService.getMyProfile(req.user);
+  }
+
+  @Patch('profile')
+  updateMyProfile(@Request() req: { user: User }, @Body() body: { instagram?: string }) {
+    return this.appointmentsService.updateMyProfile(req.user, body?.instagram);
   }
 
   @Get('available-slots')

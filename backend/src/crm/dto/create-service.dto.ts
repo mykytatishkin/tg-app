@@ -19,6 +19,12 @@ export class CreateServiceDto {
   price?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  cost?: number;
+
+  @IsOptional()
   @IsBoolean()
   @Type(() => Boolean)
   forModels?: boolean;

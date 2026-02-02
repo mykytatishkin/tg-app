@@ -12,8 +12,10 @@ const client = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const editing = ref(false);
-const editForm = ref({ name: '', phone: '', username: '', notes: '', masterNickname: '' });
+const editForm = ref({ name: '', phone: '', username: '', instagram: '', notes: '', masterNickname: '' });
 const saving = ref(false);
+const reminderSending = ref(null);
+const reminderMessage = ref(null);
 
 const id = computed(() => route.params.id);
 
@@ -27,6 +29,7 @@ async function load() {
         name: client.value.name ?? '',
         phone: client.value.phone ?? '',
         username: client.value.username ?? '',
+        instagram: client.value.instagram ?? '',
         notes: client.value.notes ?? '',
         masterNickname: client.value.masterNickname ?? '',
       };
@@ -44,6 +47,7 @@ function startEdit() {
     name: client.value?.name ?? '',
     phone: client.value?.phone ?? '',
     username: client.value?.username ?? '',
+    instagram: client.value?.instagram ?? '',
     notes: client.value?.notes ?? '',
     masterNickname: client.value?.masterNickname ?? '',
   };
@@ -61,6 +65,7 @@ async function save() {
       name: editForm.value.name || undefined,
       phone: editForm.value.phone || undefined,
       username: editForm.value.username || undefined,
+      instagram: editForm.value.instagram?.trim() || undefined,
       notes: editForm.value.notes || undefined,
       masterNickname: editForm.value.masterNickname || undefined,
     };
@@ -82,6 +87,28 @@ function goBack() {
 function formatDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function instagramLink(value) {
+  if (!value?.trim()) return null;
+  const v = value.trim().replace(/^@/, '');
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://instagram.com/${v.replace(/^instagram\.com\/?/i, '')}`;
+}
+
+async function sendReminder(type) {
+  if (!client.value?.id) return;
+  reminderSending.value = type;
+  reminderMessage.value = null;
+  error.value = null;
+  try {
+    const res = await api.post(`/crm/clients/${client.value.id}/send-reminder`, { type });
+    reminderMessage.value = res?.message ?? (res?.sent ? 'Напоминание отправлено.' : 'Не удалось отправить.');
+  } catch (e) {
+    reminderMessage.value = e.message ?? 'Ошибка отправки.';
+  } finally {
+    reminderSending.value = null;
+  }
 }
 
 onMounted(load);
@@ -110,6 +137,10 @@ onMounted(load);
             <div v-if="client.masterNickname" class="text-xs text-[var(--tg-theme-hint-color,#999)] italic mt-1">Свой ник (только для мастера): {{ client.masterNickname }}</div>
             <div v-if="client.phone" class="text-sm text-[var(--tg-theme-hint-color,#999)]">{{ client.phone }}</div>
             <div v-if="client.username" class="text-sm text-[var(--tg-theme-hint-color,#999)]">@{{ client.username }}</div>
+            <div v-if="client.instagram" class="text-sm">
+              <a :href="instagramLink(client.instagram)" target="_blank" rel="noopener noreferrer" class="text-[var(--tg-theme-link-color,#3366cc)] underline">{{ client.instagram.replace(/^@/, '') }}</a>
+              <span class="text-[var(--tg-theme-hint-color,#999)] ml-1">Instagram</span>
+            </div>
             <div v-if="client.notes" class="text-sm mt-2 whitespace-pre-wrap">{{ client.notes }}</div>
           </div>
           <button
@@ -121,6 +152,25 @@ onMounted(load);
             Редактировать
           </button>
         </div>
+        <div v-if="client.telegramId && !editing" class="mt-4 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)] flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-50"
+            :disabled="reminderSending !== null"
+            @click="sendReminder('simple')"
+          >
+            {{ reminderSending === 'simple' ? 'Отправка…' : 'Отправить напоминалку про запись' }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-2 rounded-lg text-sm bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] disabled:opacity-50"
+            :disabled="reminderSending !== null"
+            @click="sendReminder('smart')"
+          >
+            {{ reminderSending === 'smart' ? 'Отправка…' : 'Отправить подходящее расписание' }}
+          </button>
+        </div>
+        <p v-if="reminderMessage" class="mt-2 text-sm text-[var(--tg-theme-hint-color,#999)]">{{ reminderMessage }}</p>
       </div>
 
       <form v-if="editing" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6 space-y-3" @submit.prevent="save">
@@ -135,6 +185,10 @@ onMounted(load);
         <div>
           <label for="edit-username" class="block text-sm font-medium mb-1">Username (Telegram)</label>
           <input id="edit-username" v-model="editForm.username" type="text" placeholder="@username" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" />
+        </div>
+        <div>
+          <label for="edit-instagram" class="block text-sm font-medium mb-1">Instagram</label>
+          <input id="edit-instagram" v-model="editForm.instagram" type="text" placeholder="@username или ссылка" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]" />
         </div>
         <div>
           <label for="edit-masterNickname" class="block text-sm font-medium mb-1">Свой ник (видит только мастер)</label>
@@ -162,6 +216,18 @@ onMounted(load);
           <div v-if="client.stats.lastVisitAt" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">
             Последний визит: {{ formatDate(client.stats.lastVisitAt) }}
           </div>
+          <template v-if="(client.stats.favoriteWeekdays?.length || client.stats.favoriteTimeRanges?.length) && client.stats.totalVisits > 0">
+            <div class="mt-3 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)] space-y-2">
+              <div v-if="client.stats.favoriteWeekdays?.length" class="text-sm">
+                <span class="text-[var(--tg-theme-hint-color,#999)]">Любимые дни:</span>
+                <span class="ml-1">{{ client.stats.favoriteWeekdays.map(w => w.label).join(', ') }}</span>
+              </div>
+              <div v-if="client.stats.favoriteTimeRanges?.length" class="text-sm">
+                <span class="text-[var(--tg-theme-hint-color,#999)]">Любимое время:</span>
+                <span class="ml-1">{{ client.stats.favoriteTimeRanges.map(t => t.label).join(', ') }}</span>
+              </div>
+            </div>
+          </template>
         </div>
         <div v-if="client.stats.byService?.length" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
           <div class="text-sm font-medium mb-2">По сервисам</div>

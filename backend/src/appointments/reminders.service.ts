@@ -84,7 +84,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         const linkToMaster = masterTgId
           ? `<a href="tg://user?id=${masterTgId}">${escapeHtml(masterName)}</a>`
           : masterName;
-        const text = `⏰ Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Мастер: ${linkToMaster}`;
+        const text = `🕙Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Мастер: ${linkToMaster}`;
         clientReminderOk = await this.botService.sendMessage(clientTgId, text);
 
         const minutesUntil = (appointmentDateTime.getTime() - now.getTime()) / 60000;
@@ -94,7 +94,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
           const drinkSent =
             drinkOptions.length > 0
               ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
-              : await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+              : await this.botService.sendMessage(clientTgId, 'приветик! у тебя скоро запись!');
           let masterPreSent = true;
           if (masterTgId) {
             const clientUsername = a.client?.username?.trim();
@@ -112,7 +112,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         const linkToClient = clientTgId
           ? `<a href="tg://user?id=${clientTgId}">${escapeHtml(clientName)}</a>`
           : clientName;
-        const text = `⏰ Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${linkToClient}`;
+        const text = `🕙Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${linkToClient}`;
         masterReminderOk = await this.botService.sendMessage(masterTgId, text);
       }
 
@@ -152,7 +152,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const drinkSent =
         drinkOptions.length > 0
           ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
-          : await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+          : await this.botService.sendMessage(clientTgId, 'приветик! у тебя скоро запись!');
       let masterSent = true;
       if (masterTgId) {
         const clientName = a.client?.name ?? 'Клиент';

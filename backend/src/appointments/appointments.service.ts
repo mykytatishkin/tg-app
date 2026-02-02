@@ -7,7 +7,7 @@ import { Service } from '../crm/entities/service.entity';
 import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
-appointments.PNGimport { BotService } from '../bot/bot.service';
+import { BotService } from '../bot/bot.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -96,6 +96,57 @@ export class AppointmentsService {
       relations: ['service'],
       order: { date: 'DESC', startTime: 'DESC' },
     });
+  }
+
+  /** Get client IDs for current user (by telegramId or username match). */
+  private async getMyClientIds(user: User): Promise<string[]> {
+    let clients = await this.clientRepo.find({
+      where: { telegramId: user.telegramId },
+      select: ['id'],
+    });
+    let clientIds = clients.map((c) => c.id);
+    if (clientIds.length === 0 && user.username) {
+      const uname = this.normalizeUsername(user.username);
+      if (uname) {
+        const withoutTg = await this.clientRepo.find({
+          where: [{ telegramId: IsNull() }, { telegramId: '' }],
+          select: ['id', 'username'],
+        });
+        const byUsername = withoutTg.filter(
+          (c) => this.normalizeUsername(c.username) === uname,
+        );
+        if (byUsername.length === 1) {
+          await this.clientRepo.update(
+            { id: byUsername[0].id },
+            { telegramId: user.telegramId },
+          );
+          clientIds = [byUsername[0].id];
+        }
+      }
+    }
+    return clientIds;
+  }
+
+  /** Get current user's client profile (for editing instagram etc.). Returns null if no client record. */
+  async getMyProfile(user: User): Promise<{ name: string; instagram: string | null } | null> {
+    const clientIds = await this.getMyClientIds(user);
+    if (clientIds.length === 0) return null;
+    const client = await this.clientRepo.findOne({
+      where: { id: clientIds[0] },
+      select: ['name', 'instagram'],
+    });
+    return client ? { name: client.name, instagram: client.instagram ?? null } : null;
+  }
+
+  /** Update current user's instagram in all linked client records. */
+  async updateMyProfile(user: User, instagram: string | undefined): Promise<{ name: string; instagram: string | null } | null> {
+    const clientIds = await this.getMyClientIds(user);
+    if (clientIds.length === 0) return null;
+    const value = instagram === undefined ? undefined : (typeof instagram === 'string' ? instagram.trim() || null : null);
+    if (value !== undefined) {
+      await this.clientRepo.update({ id: In(clientIds) }, { instagram: value });
+    }
+    return this.getMyProfile(user);
   }
 
   private toMinutes(t: string): number {

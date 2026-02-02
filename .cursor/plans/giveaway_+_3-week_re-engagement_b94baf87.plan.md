@@ -12,6 +12,12 @@ todos:
 
     status: pending
   - id: todo-1770049331181-nmpjnnl94
+    content: Добавить в профиль клиента ссылку на инсту (Интерфейс мастера)
+    status: pending
+  - id: todo-1770050319669-yhhjt93dt
+    content: Добавить клиенту возможность подвязать инсту (указать профиль, не обязательно логиниться)
+    status: pending
+  - id: todo-1770050350877-xupl8mp79
     content: ""
     status: pending
 isProject: false

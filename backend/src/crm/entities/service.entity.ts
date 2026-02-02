@@ -25,6 +25,10 @@ export class Service {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   price: number | null;
 
+  /** Себестоимость за одну услугу (опционально). */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  cost: number | null;
+
   @Column({ type: 'boolean', default: false })
   forModels: boolean;
 

@@ -21,6 +21,7 @@ import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { UpsertMonthlyExpenseDto } from './dto/upsert-monthly-expense.dto';
 import { User } from '../auth/entities/user.entity';
 
 @Controller('crm')
@@ -39,8 +40,29 @@ export class CrmController {
   }
 
   @Get('stats')
-  getStats(@Request() req: { user: User }) {
-    return this.crmService.getStats(req.user);
+  getStats(
+    @Request() req: { user: User },
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.crmService.getStats(req.user, year, month);
+  }
+
+  @Get('expenses')
+  getExpenses(
+    @Request() req: { user: User },
+    @Query('yearMonth') yearMonth?: string,
+  ) {
+    return this.crmService.getExpenses(req.user, yearMonth);
+  }
+
+  @Put('expenses/:yearMonth')
+  upsertExpense(
+    @Request() req: { user: User },
+    @Param('yearMonth') yearMonth: string,
+    @Body() dto: UpsertMonthlyExpenseDto,
+  ) {
+    return this.crmService.upsertExpense(req.user, yearMonth, dto);
   }
 
   @Get('clients/:id')
@@ -55,6 +77,16 @@ export class CrmController {
     @Body() dto: UpdateClientDto,
   ) {
     return this.crmService.updateClient(req.user, id, dto);
+  }
+
+  @Post('clients/:id/send-reminder')
+  sendReminderToClient(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { type?: string },
+  ) {
+    const type = body?.type === 'smart' ? 'smart' : 'simple';
+    return this.crmService.sendReminderToClient(req.user, id, type);
   }
 
   @Delete('clients/:id')

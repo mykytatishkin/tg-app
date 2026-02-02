@@ -5,6 +5,7 @@ import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { Appointment, AppointmentStatus, AppointmentSource } from './entities/appointment.entity';
+import { MonthlyExpense } from './entities/monthly-expense.entity';
 import { User } from '../auth/entities/user.entity';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -14,7 +15,10 @@ import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { CreateMonthlyExpenseDto } from './dto/create-monthly-expense.dto';
+import { UpsertMonthlyExpenseDto } from './dto/upsert-monthly-expense.dto';
 import { BotService } from '../bot/bot.service';
+import { ClientRemindersService } from './client-reminders.service';
 
 @Injectable()
 export class CrmService {
@@ -27,9 +31,12 @@ export class CrmService {
     private slotRepo: Repository<AvailabilitySlot>,
     @InjectRepository(Appointment)
     private appointmentRepo: Repository<Appointment>,
+    @InjectRepository(MonthlyExpense)
+    private monthlyExpenseRepo: Repository<MonthlyExpense>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
     private botService: BotService,
+    private clientRemindersService: ClientRemindersService,
   ) {}
 
   private async getMasterId(user: User): Promise<string> {
@@ -102,10 +109,38 @@ export class CrmService {
       const db = new Date(`${b.date}T${b.startTime}`);
       return db.getTime() - da.getTime();
     });
+
+    const weekdayCounts = new Map<number, number>();
+    const timeBucketCounts = new Map<string, number>();
+    const WEEKDAY_NAMES = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+    const TIME_BUCKET_LABELS: Record<string, string> = { morning: 'Утро (до 12:00)', afternoon: 'День (12:00–18:00)', evening: 'Вечер (после 18:00)' };
+    for (const a of doneOrScheduled) {
+      const dStr = typeof a.date === 'string' ? a.date : (a.date as Date)?.toISOString?.()?.slice(0, 10);
+      if (dStr) {
+        const day = new Date(dStr + 'T12:00:00').getDay();
+        weekdayCounts.set(day, (weekdayCounts.get(day) ?? 0) + 1);
+      }
+      if (a.startTime) {
+        const hour = parseInt(String(a.startTime).slice(0, 2), 10) || 0;
+        const bucket = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+        timeBucketCounts.set(bucket, (timeBucketCounts.get(bucket) ?? 0) + 1);
+      }
+    }
+    const top2Weekdays = Array.from(weekdayCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([day]) => ({ day, label: WEEKDAY_NAMES[day] }));
+    const top2TimeRanges = Array.from(timeBucketCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([bucket]) => ({ bucket, label: TIME_BUCKET_LABELS[bucket] ?? bucket }));
+
     const stats = {
       totalVisits: doneOrScheduled.length,
       lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
+      favoriteWeekdays: top2Weekdays,
+      favoriteTimeRanges: top2TimeRanges,
     };
     const recentAppointments = sorted.slice(0, 30).map((a) => ({
       id: a.id,
@@ -122,6 +157,29 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     await this.clientRepo.update({ id, masterId }, dto);
     return this.getClient(user, id);
+  }
+
+  /** Master sends reminder to client: "simple" = 14-day style (one button), "smart" = 21-day style (suggested slots). */
+  async sendReminderToClient(
+    user: User,
+    clientId: string,
+    type: 'simple' | 'smart',
+  ): Promise<{ sent: boolean; message?: string }> {
+    const clientData = await this.getClient(user, clientId);
+    if (!clientData.telegramId?.trim()) {
+      throw new BadRequestException('У клиента не указан Telegram — напоминание отправить нельзя.');
+    }
+    const payload = {
+      id: clientData.id,
+      name: clientData.name ?? null,
+      telegramId: clientData.telegramId,
+      masterId: clientData.masterId,
+    };
+    const sent =
+      type === 'simple'
+        ? await this.clientRemindersService.sendSimpleReminderToClient(payload)
+        : await this.clientRemindersService.sendSmartReminderToClient(payload);
+    return { sent, message: sent ? 'Напоминание отправлено.' : 'Не удалось отправить (бот недоступен или клиент не начал диалог).' };
   }
 
   async deleteClient(user: User, id: string) {
@@ -330,8 +388,40 @@ export class CrmService {
     if (result.affected === 0) throw new ForbiddenException('Appointment not found');
   }
 
-  /** Statistics: services with booking count, total appointments, clients count. */
-  async getStats(user: User) {
+  /** Get monthly expenses, optionally filtered by yearMonth. */
+  async getExpenses(user: User, yearMonth?: string) {
+    const masterId = await this.getMasterId(user);
+    const qb = this.monthlyExpenseRepo
+      .createQueryBuilder('e')
+      .where('e.masterId = :masterId', { masterId })
+      .orderBy('e.yearMonth', 'DESC');
+    if (yearMonth) qb.andWhere('e.yearMonth = :yearMonth', { yearMonth });
+    return qb.getMany();
+  }
+
+  /** Upsert monthly expense for given yearMonth. */
+  async upsertExpense(user: User, yearMonth: string, dto: UpsertMonthlyExpenseDto) {
+    const masterId = await this.getMasterId(user);
+    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+      throw new BadRequestException('yearMonth must be YYYY-MM format');
+    }
+    let expense = await this.monthlyExpenseRepo.findOne({
+      where: { masterId, yearMonth },
+    });
+    if (expense) {
+      await this.monthlyExpenseRepo.update({ id: expense.id }, dto);
+      return this.monthlyExpenseRepo.findOne({ where: { id: expense!.id } });
+    }
+    expense = this.monthlyExpenseRepo.create({
+      masterId,
+      yearMonth,
+      amount: dto.amount ?? 0,
+    });
+    return this.monthlyExpenseRepo.save(expense);
+  }
+
+  /** Statistics: services with booking count, total appointments, clients count, earnings by month. */
+  async getStats(user: User, year?: string, month?: string) {
     const masterId = await this.getMasterId(user);
     const appointments = await this.appointmentRepo.find({
       where: { masterId },
@@ -340,6 +430,8 @@ export class CrmService {
     const doneOrScheduled = appointments.filter(
       (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
     );
+    const doneOnly = appointments.filter((a) => a.status === AppointmentStatus.DONE);
+
     const byServiceMap = new Map<string, { serviceId: string; serviceName: string; count: number }>();
     for (const a of doneOrScheduled) {
       const sid = a.serviceId;
@@ -348,12 +440,80 @@ export class CrmService {
       if (!byServiceMap.has(sid)) byServiceMap.set(sid, { serviceId: sid, serviceName: name, count: 0 });
       byServiceMap.get(sid)!.count += 1;
     }
-    const clientIds = new Set(doneOrScheduled.map((a) => a.clientId));
+
     const clientsCount = await this.clientRepo.count({ where: { masterId } });
+
+    const byMonthMap = new Map<
+      string,
+      { revenue: number; cost: number; appointmentCount: number }
+    >();
+    for (const a of doneOnly) {
+      const yearMonth = String(a.date).slice(0, 7);
+      if (year && yearMonth.slice(0, 4) !== year) continue;
+      if (month && yearMonth.slice(5, 7) !== month) continue;
+
+      if (!byMonthMap.has(yearMonth)) {
+        byMonthMap.set(yearMonth, { revenue: 0, cost: 0, appointmentCount: 0 });
+      }
+      const row = byMonthMap.get(yearMonth)!;
+      row.appointmentCount += 1;
+
+      const service = (a as any).service;
+      const revenue =
+        a.finalPrice != null
+          ? Number(a.finalPrice)
+          : service?.price != null
+            ? Number(service.price)
+            : 0;
+      const cost = service?.cost != null ? Number(service.cost) : 0;
+      row.revenue += revenue;
+      row.cost += cost;
+    }
+
+    const expenses = await this.monthlyExpenseRepo.find({
+      where: { masterId },
+    });
+    const expenseByMonth = new Map<string, number>();
+    for (const e of expenses) {
+      if (year && e.yearMonth.slice(0, 4) !== year) continue;
+      if (month && e.yearMonth.slice(5, 7) !== month) continue;
+      expenseByMonth.set(e.yearMonth, Number(e.amount));
+    }
+
+    const byMonth = Array.from(byMonthMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([yearMonth, row]) => {
+        const monthlyExpense = expenseByMonth.get(yearMonth) ?? 0;
+        const profit = row.revenue - row.cost - monthlyExpense;
+        return {
+          yearMonth,
+          ...row,
+          monthlyExpense,
+          profit,
+        };
+      });
+
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let totalMonthlyExpenses = 0;
+    for (const row of byMonth) {
+      totalRevenue += row.revenue;
+      totalCost += row.cost;
+      totalMonthlyExpenses += row.monthlyExpense;
+    }
+    const totals = {
+      revenue: totalRevenue,
+      cost: totalCost,
+      monthlyExpenses: totalMonthlyExpenses,
+      profit: totalRevenue - totalCost - totalMonthlyExpenses,
+    };
+
     return {
       totalAppointments: doneOrScheduled.length,
       totalClients: clientsCount,
       byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
+      byMonth,
+      totals,
     };
   }
 }
