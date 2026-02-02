@@ -114,6 +114,10 @@ watch(() => route.query.showAll, (val) => {
         </button>
         <div class="flex items-center gap-2 mt-2 flex-wrap">
           <span
+            v-if="a.withDiscount"
+            class="text-sm px-2 py-0.5 rounded bg-amber-500 text-white"
+          >Со скидкой</span>
+          <span
             class="text-sm capitalize px-2 py-0.5 rounded"
             :class="a.status === 'cancelled' ? 'bg-red-600 text-white' : a.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
           >{{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>

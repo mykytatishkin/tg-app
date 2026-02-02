@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
@@ -6,7 +7,7 @@ import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { BotService } from '../bot/bot.service';
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
-const DAYS_AFTER_VISIT = 14;
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
@@ -18,6 +19,7 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Appointment)
     private appointmentRepo: Repository<Appointment>,
     private botService: BotService,
+    private configService: ConfigService,
   ) {}
 
   onModuleInit() {
@@ -36,10 +38,9 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       where: {},
       select: ['id', 'name', 'telegramId', 'masterId', 'lastReminderSentAt'],
     });
-    const now = new Date();
-    const cutoff = new Date(now);
-    cutoff.setDate(cutoff.getDate() - DAYS_AFTER_VISIT);
-    cutoff.setHours(0, 0, 0, 0);
+    const now = Date.now();
+    const appUrl = this.configService.get<string>('MINI_APP_URL');
+    const bookingUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
 
     for (const client of clients) {
       if (!client.telegramId?.trim()) continue;
@@ -56,13 +57,22 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
         .getRawOne();
 
       if (!lastDone) continue;
-      const lastVisitDate = new Date(`${lastDone.date}T${lastDone.startTime}`);
-      if (lastVisitDate > cutoff) continue;
+      const lastVisitMs = new Date(`${lastDone.date}T${lastDone.startTime}`).getTime();
+      if (lastVisitMs + TWO_WEEKS_MS > now) continue;
 
-      if (client.lastReminderSentAt && client.lastReminderSentAt >= lastVisitDate) continue;
+      if (client.lastReminderSentAt && client.lastReminderSentAt.getTime() >= lastVisitMs) continue;
 
       const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру. Ждём вас!`;
-      await this.botService.sendMessage(client.telegramId.trim(), text);
+      if (bookingUrl) {
+        await this.botService.sendMessageWithWebAppButton(
+          client.telegramId.trim(),
+          text,
+          'Записаться',
+          bookingUrl,
+        );
+      } else {
+        await this.botService.sendMessage(client.telegramId.trim(), text);
+      }
       await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
     }
   }

@@ -81,6 +81,15 @@ export class Appointment {
   referenceImageUrl: string | null;
 
   @Column({ type: 'boolean', default: false })
+  withDiscount: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  discountLabel: string | null;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: true })
+  discountPercent: number | null;
+
+  @Column({ type: 'boolean', default: false })
   reminderEnabled: boolean;
 
   @Column({ type: 'timestamp', nullable: true })

@@ -20,4 +20,9 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  /** Invisible nickname — only master sees it. */
+  @IsString()
+  @IsOptional()
+  masterNickname?: string;
 }

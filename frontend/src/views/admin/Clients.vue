@@ -64,6 +64,7 @@ onMounted(load);
         @click="goToClient(c.id)"
       >
         <div class="font-medium">{{ c.name }}</div>
+        <div v-if="c.masterNickname" class="text-xs text-[var(--tg-theme-hint-color,#999)] italic">Свой ник: {{ c.masterNickname }}</div>
         <div v-if="c.phone" class="text-sm text-[var(--tg-theme-hint-color,#999)]">{{ c.phone }}</div>
         <div v-if="c.username" class="text-sm text-[var(--tg-theme-hint-color,#999)]">@{{ c.username }}</div>
         <div class="text-sm mt-2 text-[var(--tg-theme-hint-color,#999)]">

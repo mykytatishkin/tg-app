@@ -74,6 +74,12 @@ const routes = [
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {
+    path: '/promo',
+    name: 'Promo',
+    component: () => import('../views/Promo.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/giveaways',
     name: 'Giveaways',
     component: () => import('../views/Giveaways.vue'),

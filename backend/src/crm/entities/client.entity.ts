@@ -31,6 +31,10 @@ export class Client {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /** Invisible nickname set by master — only master sees it (not the client). */
+  @Column({ type: 'varchar', nullable: true })
+  masterNickname: string | null;
+
   /** Last time we sent "2 weeks since last visit" reminder (to avoid repeat spam). */
   @Column({ type: 'timestamp', nullable: true })
   lastReminderSentAt: Date | null;

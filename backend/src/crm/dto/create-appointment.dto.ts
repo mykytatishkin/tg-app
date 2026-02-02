@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsEnum, IsBoolean, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AppointmentStatus } from '../entities/appointment.entity';
 
 export class CreateAppointmentDto {
@@ -33,4 +34,18 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsEnum(AppointmentStatus)
   status?: AppointmentStatus;
+
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  withDiscount?: boolean;
+
+  @IsString()
+  @IsOptional()
+  discountLabel?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPercent?: number;
 }
