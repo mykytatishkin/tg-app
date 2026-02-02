@@ -190,7 +190,7 @@ async function submit() {
       note: designByReference.value ? (note.value || undefined) : undefined,
       referenceImageUrl: designByReference.value ? (referenceImageUrl.value || undefined) : undefined,
     };
-    if (!forModelsMode.value) payload.serviceId = selectedServiceId.value;
+    if (selectedServiceId.value) payload.serviceId = selectedServiceId.value;
     const appointment = await api.post('/appointments/book', payload);
     hapticFeedback?.('success');
     router.push({ name: 'BookingSuccess', query: { id: appointment.id } });
@@ -309,31 +309,29 @@ watch(selectedServiceId, () => {
           </select>
         </div>
 
-        <div v-if="forModelsMode && selectedMasterId" class="space-y-3">
-          <div>
-            <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Сервисы для моделей</label>
-            <div v-if="loadingModelServices" class="text-[var(--tg-theme-hint-color,#999)] text-sm">Загрузка…</div>
-            <div v-else-if="modelServices.length === 0" class="text-sm text-[var(--tg-theme-hint-color,#999)] p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
-              Нет услуг для моделей. Выберите время ниже.
-            </div>
-            <ul v-else class="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 space-y-1">
-              <li v-for="ms in modelServices" :key="ms.id" class="text-sm text-purple-700 dark:text-purple-300">
-                {{ ms.name }}
-                <span v-if="ms.durationMinutes"> · {{ ms.durationMinutes }} min</span>
-                <span v-if="ms.price != null"> · {{ ms.price }}+ €</span>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время (для моделей)</label>
-          </div>
+        <div v-if="forModelsMode && selectedMasterId">
+          <label for="book-model-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга (для моделей)</label>
+          <div v-if="loadingModelServices" class="text-[var(--tg-theme-hint-color,#999)] text-sm">Загрузка…</div>
+          <select
+            v-else
+            id="book-model-service"
+            v-model="selectedServiceId"
+            class="w-full p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700"
+          >
+            <option value="">Выберите услугу для моделей</option>
+            <option v-for="s in modelServices" :key="s.id" :value="s.id">
+              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + '+ €' : '' }}
+            </option>
+          </select>
+          <p v-if="!loadingModelServices && modelServices.length === 0" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Нет услуг для моделей. Можно записаться без выбора услуги.</p>
         </div>
-        <div v-else-if="!forModelsMode && selectedServiceId" class="space-y-1">
+        <div v-if="!forModelsMode && selectedServiceId" class="space-y-1">
           <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">
             Свободное время
           </label>
         </div>
         <div v-if="(forModelsMode ? selectedMasterId : selectedServiceId)">
+          <label v-if="forModelsMode" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время (для моделей)</label>
           <div v-if="loadingSlots" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка слотов…</div>
           <div v-else-if="slots.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
             Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте позже.

@@ -125,7 +125,7 @@ async function saveFinalPrice() {
   savingFinalPrice.value = true;
   error.value = null;
   try {
-    const val = finalPriceInput.value.trim();
+    const val = String(finalPriceInput.value ?? '').trim();
     const finalPrice = val === '' ? undefined : Number(val);
     if (finalPrice !== undefined && (Number.isNaN(finalPrice) || finalPrice < 0)) {
       error.value = 'Введите число ≥ 0.';
@@ -167,7 +167,7 @@ onMounted(load);
       >
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Дата и время</span>
-          <div class="font-medium">{{ appointment.date }} {{ appointment.startTime }}</div>
+          <div class="font-medium">{{ appointment.date }} {{ appointment.startTime ? appointment.startTime.slice(0, 5) : '' }}</div>
         </div>
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Клиент</span>
@@ -176,7 +176,10 @@ onMounted(load);
         <div>
           <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Услуга</span>
           <div class="font-medium">
-            <template v-if="appointment.serviceId">{{ appointment.service?.name }}</template>
+            <template v-if="appointment.serviceId">
+              {{ appointment.service?.name }}
+              <span v-if="appointment.service?.price != null"> · {{ appointment.service.price }}+ €</span>
+            </template>
             <span v-else class="text-purple-600 font-medium">Для моделей</span>
           </div>
         </div>

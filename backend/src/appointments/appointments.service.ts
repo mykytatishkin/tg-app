@@ -50,8 +50,7 @@ export class AppointmentsService {
 
   async getServices(masterId?: string, forModels?: boolean) {
     const resolved = await this.resolveMasterId(masterId);
-    const where: { masterId: string; forModels?: boolean } = { masterId: resolved };
-    if (forModels === true) where.forModels = true;
+    const where: { masterId: string; forModels: boolean } = { masterId: resolved, forModels: forModels === true };
     return this.serviceRepo.find({
       where,
       order: { name: 'ASC' },
@@ -111,6 +110,7 @@ export class AppointmentsService {
     const freeSlots: { startTime: string; endTime: string; slotId?: string }[] = [];
 
     for (const slot of slots) {
+      if (slot.forModels) continue;
       const modelBooked = booked.some((a) => a.slotId === slot.id && !a.serviceId);
       if (modelBooked) continue;
 
@@ -229,20 +229,27 @@ export class AppointmentsService {
       await this.clientRepo.save(client);
     }
 
-    const isForModels = !dto.serviceId;
+    const slot = dto.slotId
+      ? await this.slotRepo.findOne({ where: { id: dto.slotId, masterId } })
+      : null;
+    const isForModels = slot?.forModels === true;
     if (isForModels) {
       if (!dto.slotId) throw new BadRequestException('slotId is required for model booking');
-      const slot = await this.slotRepo.findOne({
-        where: { id: dto.slotId, masterId, forModels: true },
-      });
-      if (!slot) throw new BadRequestException('Model slot not found or not for models');
       const alreadyBooked = await this.appointmentRepo.findOne({
         where: { slotId: dto.slotId, status: AppointmentStatus.SCHEDULED },
       });
       if (alreadyBooked) throw new BadRequestException('This slot is already booked');
+      let serviceId: string | null = null;
+      if (dto.serviceId) {
+        const service = await this.serviceRepo.findOne({
+          where: { id: dto.serviceId, masterId, forModels: true },
+        });
+        if (!service) throw new BadRequestException('Service not found or not for models');
+        serviceId = service.id;
+      }
       const appointment = this.appointmentRepo.create({
         clientId: client.id,
-        serviceId: null,
+        serviceId,
         slotId: dto.slotId,
         date: dto.date,
         startTime: dto.startTime,

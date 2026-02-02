@@ -108,9 +108,9 @@ watch(() => route.query.showAll, (val) => {
           class="w-full text-left"
           @click="goToDetail(a.id)"
         >
-          <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
+          <div class="font-medium">{{ a.date }} {{ a.startTime ? a.startTime.slice(0, 5) : '' }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ a.client?.name }} · {{ a.serviceId ? a.service?.name : 'Для моделей' }}
+            {{ a.client?.name }} · {{ a.serviceId ? ((a.service?.name ?? '') + (a.service?.price != null ? ' · ' + a.service.price + '+ €' : '')) : 'Для моделей' }}
           </div>
         </button>
         <div class="flex items-center gap-2 mt-2 flex-wrap">
