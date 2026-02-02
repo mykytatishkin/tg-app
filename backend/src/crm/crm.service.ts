@@ -358,7 +358,7 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     const appointment = await this.appointmentRepo.findOne({
       where: { id, masterId },
-      relations: ['client', 'service'],
+      relations: ['client', 'service', 'feedback'],
     });
     if (!appointment) throw new ForbiddenException('Appointment not found');
     return appointment;
@@ -368,16 +368,44 @@ export class CrmService {
     const masterId = await this.getMasterId(user);
     const previous = await this.appointmentRepo.findOne({
       where: { id, masterId },
-      relations: ['client', 'service'],
+      relations: ['client', 'service', 'master', 'feedback'],
     });
-    await this.appointmentRepo.update({ id, masterId }, dto);
+    const isCancelling = dto.status === AppointmentStatus.CANCELLED;
+    const cancellationReasonText = isCancelling
+      ? (dto.cancellationReason && String(dto.cancellationReason).trim()) || 'Не указана'
+      : undefined;
+    const updatePayload: Partial<Appointment> = { ...dto };
+    if (isCancelling) {
+      updatePayload.cancellationReason = cancellationReasonText!;
+      updatePayload.cancelledBy = 'master';
+    }
+    await this.appointmentRepo.update({ id, masterId }, updatePayload);
     const updated = await this.getAppointment(user, id);
     if (dto.status === AppointmentStatus.CANCELLED && previous?.client?.telegramId) {
       const timeStr = (previous.startTime || '').slice(0, 5);
       const dateTimeStr = `${previous.date} ${timeStr}`;
       const serviceName = previous.service?.name ?? '';
-      const text = `❌ Ваша запись отменена мастером: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}.`;
+      const text = `❌ Ваша запись отменена мастером: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Причина: ${cancellationReasonText ?? 'Не указана'}`;
       await this.botService.sendMessage(previous.client.telegramId, text);
+    }
+    if (
+      dto.status === AppointmentStatus.DONE &&
+      previous?.client?.telegramId &&
+      !previous.feedback &&
+      !(previous as { feedbackRequestedAt?: Date | null }).feedbackRequestedAt
+    ) {
+      const options =
+        (previous.master as { feedbackOptions?: string[] | null })?.feedbackOptions ??
+        ['Качество работы', 'Общение', 'Атмосфера', 'Скорость'];
+      await this.botService.sendFeedbackRequest(
+        previous.client.telegramId,
+        id,
+        Array.isArray(options) && options.length > 0 ? options : ['Качество работы', 'Общение', 'Атмосфера', 'Скорость'],
+      );
+      await this.appointmentRepo.update(
+        { id, masterId },
+        { feedbackRequestedAt: new Date() },
+      );
     }
     return updated;
   }
@@ -420,12 +448,12 @@ export class CrmService {
     return this.monthlyExpenseRepo.save(expense);
   }
 
-  /** Statistics: services with booking count, total appointments, clients count, earnings by month. */
+  /** Statistics: services with booking count, total appointments, clients count, earnings by month, feedback. */
   async getStats(user: User, year?: string, month?: string) {
     const masterId = await this.getMasterId(user);
     const appointments = await this.appointmentRepo.find({
       where: { masterId },
-      relations: ['service'],
+      relations: ['service', 'feedback'],
     });
     const doneOrScheduled = appointments.filter(
       (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
@@ -508,12 +536,23 @@ export class CrmService {
       profit: totalRevenue - totalCost - totalMonthlyExpenses,
     };
 
+    const feedbackList = appointments
+      .map((a) => (a as { feedback?: { rating: number } | null }).feedback)
+      .filter(Boolean) as { rating: number }[];
+    const feedbackCount = feedbackList.length;
+    const averageRating =
+      feedbackCount > 0
+        ? feedbackList.reduce((s, f) => s + f.rating, 0) / feedbackCount
+        : null;
+
     return {
       totalAppointments: doneOrScheduled.length,
       totalClients: clientsCount,
       byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
       byMonth,
       totals,
+      feedbackCount,
+      averageRating: averageRating != null ? Math.round(averageRating * 10) / 10 : null,
     };
   }
 }

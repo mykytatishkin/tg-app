@@ -5,12 +5,14 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToOne,
   JoinColumn,
 } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 import { Client } from './client.entity';
 import { Service } from './service.entity';
 import { AvailabilitySlot } from './availability-slot.entity';
+import { AppointmentFeedback } from './appointment-feedback.entity';
 
 export enum AppointmentStatus {
   SCHEDULED = 'scheduled',
@@ -102,6 +104,21 @@ export class Appointment {
   /** Напоминание «желаете что-то выпить?» отправлено за 5–10 мин до сеанса. */
   @Column({ type: 'timestamp', nullable: true })
   preSessionReminderSentAt: Date | null;
+
+  /** Когда бот отправил клиенту запрос отзыва (чтобы не слать повторно). */
+  @Column({ type: 'timestamp', nullable: true })
+  feedbackRequestedAt: Date | null;
+
+  /** Причина отмены (при status = CANCELLED). */
+  @Column({ type: 'text', nullable: true })
+  cancellationReason: string | null;
+
+  /** Кто отменил: client | master. */
+  @Column({ type: 'varchar', nullable: true })
+  cancelledBy: 'client' | 'master' | null;
+
+  @OneToOne(() => AppointmentFeedback, (fb) => fb.appointment, { nullable: true })
+  feedback: AppointmentFeedback | null;
 
   @CreateDateColumn()
   createdAt: Date;

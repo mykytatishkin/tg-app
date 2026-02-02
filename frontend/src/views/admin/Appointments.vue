@@ -8,11 +8,22 @@ const router = useRouter();
 const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
 
+const MASTER_CANCEL_REASONS = [
+  'Болезнь',
+  'Семейные обстоятельства',
+  'Технические причины',
+  'Другая причина',
+];
+
 const appointments = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const updatingId = ref(null);
 const showPastAndClosed = ref(false);
+const showCancelModal = ref(false);
+const cancelTargetId = ref(null);
+const cancelReason = ref('');
+const cancelOtherText = ref('');
 
 async function load() {
   loading.value = true;
@@ -34,11 +45,15 @@ function toggleShowPast() {
   load();
 }
 
-async function setStatus(id, status) {
+async function setStatus(id, status, cancellationReason) {
   updatingId.value = id;
   error.value = null;
   try {
-    await api.put(`/crm/appointments/${id}`, { status });
+    const payload = { status };
+    if (status === 'cancelled') {
+      payload.cancellationReason = cancellationReason || 'Не указана';
+    }
+    await api.put(`/crm/appointments/${id}`, payload);
     hapticFeedback?.('light');
     await load();
   } catch (e) {
@@ -46,6 +61,42 @@ async function setStatus(id, status) {
   } finally {
     updatingId.value = null;
   }
+}
+
+function openCancelModal(id) {
+  hapticFeedback?.('light');
+  cancelTargetId.value = id;
+  cancelReason.value = '';
+  cancelOtherText.value = '';
+  showCancelModal.value = true;
+}
+
+function closeCancelModal() {
+  showCancelModal.value = false;
+  cancelTargetId.value = null;
+  cancelReason.value = '';
+  cancelOtherText.value = '';
+}
+
+function masterReasonToSend() {
+  if (cancelReason.value === 'Другая причина' && cancelOtherText.value.trim()) {
+    return cancelOtherText.value.trim();
+  }
+  return cancelReason.value || 'Не указана';
+}
+
+function canConfirmMasterCancel() {
+  if (!cancelReason.value) return false;
+  if (cancelReason.value === 'Другая причина') return !!cancelOtherText.value.trim();
+  return true;
+}
+
+async function confirmMasterCancel() {
+  const id = cancelTargetId.value;
+  if (!id) return;
+  const reason = masterReasonToSend();
+  closeCancelModal();
+  await setStatus(id, 'cancelled', reason);
 }
 
 function goToDetail(id) {
@@ -146,7 +197,7 @@ watch(() => route.query.showAll, (val) => {
               type="button"
               class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
               :disabled="updatingId === a.id"
-              @click.stop="setStatus(a.id, 'cancelled')"
+              @click.stop="openCancelModal(a.id)"
             >
               Отменить
             </button>
@@ -154,5 +205,51 @@ watch(() => route.query.showAll, (val) => {
         </div>
       </li>
     </ul>
+
+    <div
+      v-if="showCancelModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      @click.self="closeCancelModal"
+    >
+      <div class="w-full max-w-sm rounded-xl p-4 bg-[var(--tg-theme-bg-color,#fff)] shadow-lg">
+        <h3 class="text-lg font-semibold mb-3">Укажите причину отмены</h3>
+        <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Причина будет отправлена клиенту.</p>
+        <div class="space-y-2 mb-4">
+          <label
+            v-for="r in MASTER_CANCEL_REASONS"
+            :key="r"
+            class="flex items-center gap-2 cursor-pointer"
+          >
+            <input v-model="cancelReason" type="radio" :value="r" class="rounded-full">
+            <span class="text-sm">{{ r }}</span>
+          </label>
+          <div v-if="cancelReason === 'Другая причина'" class="ml-6 mt-2">
+            <input
+              v-model="cancelOtherText"
+              type="text"
+              placeholder="Напишите причину"
+              class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#fff)] text-sm"
+            >
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 py-2 rounded-lg bg-neutral-800 text-white disabled:opacity-50"
+            :disabled="updatingId !== null || !canConfirmMasterCancel()"
+            @click="confirmMasterCancel"
+          >
+            {{ updatingId !== null ? 'Отмена…' : 'Отменить запись' }}
+          </button>
+          <button
+            type="button"
+            class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e4e4e7)] text-sm"
+            @click="closeCancelModal"
+          >
+            Назад
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

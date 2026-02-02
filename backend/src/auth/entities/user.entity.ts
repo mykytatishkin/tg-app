@@ -51,6 +51,10 @@ export class User {
   @Column({ type: 'json', nullable: true })
   drinkOptions: string[] | null;
 
+  /** Варианты «что понравилось» для отзыва после сеанса. */
+  @Column({ type: 'json', nullable: true })
+  feedbackOptions: string[] | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

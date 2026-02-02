@@ -155,7 +155,7 @@ onMounted(load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="stats">
-      <div class="grid gap-4 mb-6">
+      <div class="grid gap-4 mb-6 grid-cols-2">
         <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Всего записей</div>
           <div class="text-2xl font-semibold">{{ stats.totalAppointments }}</div>
@@ -163,6 +163,16 @@ onMounted(load);
         <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Клиентов</div>
           <div class="text-2xl font-semibold">{{ stats.totalClients }}</div>
+        </div>
+        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Отзывов</div>
+          <div class="text-2xl font-semibold">{{ stats.feedbackCount ?? 0 }}</div>
+        </div>
+        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Средний рейтинг</div>
+          <div class="text-2xl font-semibold">
+            {{ stats.averageRating != null ? stats.averageRating + ' ★' : '—' }}
+          </div>
         </div>
       </div>
 

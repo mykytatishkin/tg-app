@@ -91,7 +91,11 @@ export class AppointmentsController {
   }
 
   @Post(':id/cancel')
-  cancelByClient(@Request() req: { user: User }, @Param('id') id: string) {
-    return this.appointmentsService.cancelByClient(req.user, id);
+  cancelByClient(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.appointmentsService.cancelByClient(req.user, id, body?.reason ?? '');
   }
 }

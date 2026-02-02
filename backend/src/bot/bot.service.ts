@@ -15,10 +15,23 @@ import {
   type QuickTestQuestion,
 } from './quick-test.state';
 import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
+import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
 const DRINK_CB_PREFIX = 'drink_';
+const FEEDBACK_CB_PREFIX = 'feedback_';
+
+export interface FeedbackSessionState {
+  appointmentId: string;
+  step: 'comment' | 'whatGood' | 'done';
+  rating: number;
+  comment: string | null;
+  selectedGood: number[];
+  options: string[];
+}
+
+export const feedbackSessions = new Map<string, FeedbackSessionState>();
 
 function formatCoursesMessage(courses: MockCourse[]): string {
   const lines = courses.map(
@@ -78,6 +91,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private configService: ConfigService,
     @InjectRepository(Appointment)
     private appointmentRepo: Repository<Appointment>,
+    @InjectRepository(AppointmentFeedback)
+    private feedbackRepo: Repository<AppointmentFeedback>,
   ) {}
 
   onModuleInit() {
@@ -113,6 +128,118 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
           [Markup.button.url('Инстаграм @murrnails_', 'https://instagram.com/murrnails_')],
         ]),
       );
+    });
+
+    // ——— Обработчики отзыва после сеанса ———
+    this.bot.action(new RegExp(`^${FEEDBACK_CB_PREFIX}stars_`), async (ctx) => {
+      const data = (ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '') ?? '';
+      const match = data.match(/^feedback_stars_([^_]+)_(\d)$/);
+      if (!match) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      const [, appointmentId, ratingStr] = match;
+      const rating = parseInt(ratingStr, 10);
+      if (rating < 1 || rating > 5) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      const appointment = await this.appointmentRepo.findOne({
+        where: { id: appointmentId, status: AppointmentStatus.DONE },
+        relations: ['client', 'master'],
+      });
+      if (!appointment) {
+        await ctx.answerCbQuery();
+        return ctx.reply('Запись не найдена или сеанс ещё не завершён.');
+      }
+      const chatId = String(ctx.chat?.id ?? ctx.from?.id ?? '');
+      if (appointment.client?.telegramId !== chatId) {
+        await ctx.answerCbQuery();
+        return ctx.reply('Этот отзыв не для вас.');
+      }
+      const existing = await this.feedbackRepo.findOne({ where: { appointmentId } });
+      if (existing) {
+        await ctx.answerCbQuery();
+        return ctx.reply('Вы уже оставили отзыв по этому сеансу.');
+      }
+      const options =
+        (appointment.master as { feedbackOptions?: string[] | null })?.feedbackOptions ??
+        ['Качество работы', 'Общение', 'Атмосфера', 'Скорость'];
+      const opts = Array.isArray(options) && options.length > 0 ? options : ['Качество работы', 'Общение', 'Атмосфера', 'Скорость'];
+      feedbackSessions.set(chatId, {
+        appointmentId,
+        step: 'comment',
+        rating,
+        comment: null,
+        selectedGood: [],
+        options: opts,
+      });
+      await ctx.answerCbQuery();
+      return ctx.reply('Напишите комментарий к сеансу (или нажмите «Пропустить»).', {
+        reply_markup: {
+          inline_keyboard: [[{ text: 'Пропустить', callback_data: `feedback_skip_comment_${appointmentId}` }]],
+        },
+      });
+    });
+
+    this.bot.action(new RegExp(`^${FEEDBACK_CB_PREFIX}skip_comment_`), async (ctx) => {
+      const data = (ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '') ?? '';
+      const appointmentId = data.replace(/^feedback_skip_comment_/, '');
+      const key = getSessionKey(ctx);
+      const state = key ? feedbackSessions.get(key) : undefined;
+      if (!state || state.appointmentId !== appointmentId) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      await ctx.answerCbQuery();
+      state.comment = null;
+      state.step = 'whatGood';
+      if (state.options.length > 0) {
+        const rows = state.options.map((label, idx) => [
+          Markup.button.callback(label, `feedback_good_${appointmentId}_${idx}`),
+        ]);
+        rows.push([Markup.button.callback('Готово', `feedback_done_${appointmentId}`)]);
+        return ctx.reply('Что понравилось? (можно выбрать несколько)', {
+          reply_markup: { inline_keyboard: rows },
+        });
+      }
+      await this.saveFeedbackAndReply(ctx, state);
+    });
+
+    this.bot.action(new RegExp(`^${FEEDBACK_CB_PREFIX}good_`), async (ctx) => {
+      const data = (ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '') ?? '';
+      const match = data.match(/^feedback_good_([^_]+)_(\d+)$/);
+      if (!match) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      const [, appointmentId, idxStr] = match;
+      const key = getSessionKey(ctx);
+      const state = key ? feedbackSessions.get(key) : undefined;
+      if (!state || state.appointmentId !== appointmentId) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      const idx = parseInt(idxStr, 10);
+      if (state.selectedGood.includes(idx)) {
+        state.selectedGood = state.selectedGood.filter((i) => i !== idx);
+      } else {
+        state.selectedGood.push(idx);
+      }
+      await ctx.answerCbQuery(`Выбрано: ${state.selectedGood.length}`);
+    });
+
+    this.bot.action(new RegExp(`^${FEEDBACK_CB_PREFIX}done_`), async (ctx) => {
+      const data = (ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '') ?? '';
+      const appointmentId = data.replace(/^feedback_done_/, '');
+      const key = getSessionKey(ctx);
+      const state = key ? feedbackSessions.get(key) : undefined;
+      if (!state || state.appointmentId !== appointmentId) {
+        await ctx.answerCbQuery();
+        return;
+      }
+      await ctx.answerCbQuery();
+      await this.saveFeedbackAndReply(ctx, state);
     });
 
     // Резервный обработчик для старой кнопки «Пройти тест»
@@ -196,6 +323,22 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.bot.on('text', async (ctx, next) => {
       const key = getSessionKey(ctx);
       const text = ctx.message.text.trim();
+      const feedbackState = key ? feedbackSessions.get(key) : undefined;
+      if (feedbackState && feedbackState.step === 'comment') {
+        feedbackState.comment = text.slice(0, 2000);
+        feedbackState.step = 'whatGood';
+        if (feedbackState.options.length > 0) {
+          const rows = feedbackState.options.map((label, idx) => [
+            Markup.button.callback(label, `feedback_good_${feedbackState.appointmentId}_${idx}`),
+          ]);
+          rows.push([Markup.button.callback('Готово', `feedback_done_${feedbackState.appointmentId}`)]);
+          return ctx.reply('Что понравилось? (можно выбрать несколько)', {
+            reply_markup: { inline_keyboard: rows },
+          });
+        }
+        await this.saveFeedbackAndReply(ctx, feedbackState);
+        return;
+      }
       const state = key ? quickTestSessions.get(key) : undefined;
 
       if (!state) return next();
@@ -287,6 +430,73 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       console.error('Bot sendMessageWithWebAppButton error:', err);
       return false;
+    }
+  }
+
+  /** Request feedback from client after session: "Оцените сеанс 1–5 звёзд" + inline buttons. */
+  async sendFeedbackRequest(
+    chatId: string,
+    appointmentId: string,
+    options: string[],
+  ): Promise<boolean> {
+    if (!this.bot) return false;
+    try {
+      const stars = [1, 2, 3, 4, 5].map((n) =>
+        Markup.button.callback(String(n), `feedback_stars_${appointmentId}_${n}`),
+      );
+      await this.bot.telegram.sendMessage(
+        chatId,
+        'Спасибо за визит! Оцените сеанс от 1 до 5 звёзд.',
+        { reply_markup: { inline_keyboard: [stars] } },
+      );
+      return true;
+    } catch (err) {
+      console.error('Bot sendFeedbackRequest error:', err);
+      return false;
+    }
+  }
+
+  private async saveFeedbackAndReply(
+    ctx: Context,
+    state: FeedbackSessionState,
+  ): Promise<void> {
+    const key = getSessionKey(ctx);
+    if (!key) return;
+    const existing = await this.feedbackRepo.findOne({
+      where: { appointmentId: state.appointmentId },
+    });
+    if (existing) {
+      feedbackSessions.delete(key);
+      await ctx.reply('Вы уже оставили отзыв по этому сеансу.');
+      return;
+    }
+    const whatWasGood =
+      state.selectedGood.length > 0
+        ? state.selectedGood
+            .filter((i) => i >= 0 && i < state.options.length)
+            .map((i) => state.options[i])
+        : null;
+    await this.feedbackRepo.save({
+      appointmentId: state.appointmentId,
+      rating: state.rating,
+      comment: state.comment ?? null,
+      whatWasGood,
+    });
+    feedbackSessions.delete(key);
+    await ctx.reply('Спасибо за отзыв!');
+
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: state.appointmentId },
+      relations: ['client', 'master'],
+    });
+    const masterTgId = appointment?.master?.telegramId?.trim();
+    if (masterTgId) {
+      const clientName = appointment?.client?.name ?? 'Клиент';
+      const starsStr = '★'.repeat(state.rating) + '☆'.repeat(5 - state.rating);
+      let text = `${clientName} оставил(а) отзыв: ${starsStr}`;
+      if (state.comment) text += `\nКомментарий: ${escapeHtml(state.comment)}`;
+      if (whatWasGood?.length) text += `\nПонравилось: ${whatWasGood.join(', ')}`;
+      await this.sendMessage(masterTgId, text);
     }
   }
 

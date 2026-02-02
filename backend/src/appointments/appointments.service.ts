@@ -380,7 +380,7 @@ export class AppointmentsService {
   }
 
   /** Client cancels their own appointment. */
-  async cancelByClient(user: User, appointmentId: string) {
+  async cancelByClient(user: User, appointmentId: string, reason: string) {
     const appointment = await this.appointmentRepo.findOne({
       where: { id: appointmentId },
       relations: ['client', 'master', 'service'],
@@ -392,7 +392,10 @@ export class AppointmentsService {
     if (appointment.status !== AppointmentStatus.SCHEDULED) {
       throw new BadRequestException('Appointment cannot be cancelled');
     }
+    const reasonText = (reason && String(reason).trim()) || 'Не указана';
     appointment.status = AppointmentStatus.CANCELLED;
+    (appointment as { cancellationReason?: string; cancelledBy?: 'client' | 'master' }).cancellationReason = reasonText;
+    (appointment as { cancellationReason?: string; cancelledBy?: 'client' | 'master' }).cancelledBy = 'client';
     const saved = await this.appointmentRepo.save(appointment);
 
     const masterTgId = appointment.master?.telegramId?.trim();
@@ -403,7 +406,7 @@ export class AppointmentsService {
       const clientUsername = appointment.client?.username?.trim();
       const mention = clientUsername ? `@${clientUsername}` : clientName;
       const serviceName = appointment.service?.name ?? '';
-      const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${mention}`;
+      const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${mention}. Причина: ${reasonText}`;
       await this.botService.sendMessage(masterTgId, text);
     }
 
