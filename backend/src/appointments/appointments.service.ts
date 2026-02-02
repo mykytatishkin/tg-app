@@ -7,7 +7,7 @@ import { Service } from '../crm/entities/service.entity';
 import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
-import { BotService } from '../bot/bot.service';
+appointments.PNGimport { BotService } from '../bot/bot.service';
 
 @Injectable()
 export class AppointmentsService {

@@ -10,21 +10,22 @@ const { hapticFeedback } = useTelegramWebApp();
 
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
 
+const iconV = 'v=3';
 const adminNavItems = [
-  { path: '/admin/clients', label: 'Клиенты', icon: '/icons/clients.png' },
-  { path: '/admin/stats', label: 'Статистика', icon: '/icons/stats.png' },
-  { path: '/admin/services', label: 'Услуги', icon: '/icons/services.png' },
-  { path: '/admin/appointments', label: 'Записи', icon: '/icons/appointments.png' },
-  { path: '/admin/availability', label: 'Доступность', icon: '🕐' },
-  { path: '/admin/drinks', label: 'Напитки', icon: '/icons/drinks.png' },
-  { path: '/giveaways', label: 'Розыгрыши', icon: '/icons/giveaways.png' },
+  { path: '/admin/clients', label: 'Клиенты', icon: `/icons/clients.png?${iconV}` },
+  { path: '/admin/stats', label: 'Статистика', icon: `/icons/stats.png?${iconV}` },
+  { path: '/admin/services', label: 'Услуги', icon: `/icons/services.png?${iconV}` },
+  { path: '/admin/appointments', label: 'Записи', icon: `/icons/appointments.png?${iconV}` },
+  { path: '/admin/availability', label: 'Доступность', icon: `/icons/availability.png?${iconV}` },
+  { path: '/admin/drinks', label: 'Напитки', icon: `/icons/drinks.png?${iconV}` },
+  { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
 ];
 
 const userNavItems = [
-  { path: '/appointments', label: 'Мои записи', icon: '/icons/appointments.png' },
+  { path: '/appointments', label: 'Мои записи', icon: `/icons/appointments.png?${iconV}` },
   { path: '/appointments/book', label: 'Записаться', icon: '➕' },
   { path: '/promo', label: 'Скидки', icon: '🏷️' },
-  { path: '/giveaways', label: 'Розыгрыши', icon: '/icons/giveaways.png' },
+  { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
 ];
 
 function goTo(path) {
@@ -57,7 +58,12 @@ function handleLogout() {
           @click="goTo(item.path)"
         >
           <span class="nav-icon-wrap text-2xl">
-            <img v-if="item.icon.startsWith('/')" :src="item.icon" :alt="item.label" class="nav-icon" />
+            <img
+              v-if="item.icon.startsWith('/')"
+              :src="item.icon"
+              :alt="item.label"
+              :class="['nav-icon', { 'nav-icon-rounded': item.path === '/admin/stats' || item.path === '/admin/services' }]"
+            />
             <span v-else>{{ item.icon }}</span>
           </span>
           <span class="font-medium">{{ item.label }}</span>
@@ -71,7 +77,12 @@ function handleLogout() {
           @click="goTo(item.path)"
         >
           <span class="nav-icon-wrap text-2xl">
-            <img v-if="item.icon.startsWith('/')" :src="item.icon" :alt="item.label" class="nav-icon" />
+            <img
+              v-if="item.icon.startsWith('/')"
+              :src="item.icon"
+              :alt="item.label"
+              class="nav-icon"
+            />
             <span v-else>{{ item.icon }}</span>
           </span>
           <span class="font-medium">{{ item.label }}</span>

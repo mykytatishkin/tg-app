@@ -129,7 +129,7 @@ input, textarea {
   background-color: transparent !important;
 }
 
-/* Иконки в навигации: белый фон сливается с фоном (как прозрачный) */
+/* Иконки в навигации — без затемнения */
 .nav-icon-wrap {
   display: inline-flex;
   align-items: center;
@@ -139,5 +139,8 @@ input, textarea {
   height: 1.75rem;
   width: 1.75rem;
   object-fit: contain;
-  mix-blend-mode: multiply;
+}
+.nav-icon-rounded {
+  border-radius: 50%;
+  object-fit: cover;
 }
