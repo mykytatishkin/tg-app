@@ -68,6 +68,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/giveaways/new',
+    name: 'GiveawayNew',
+    component: () => import('../views/GiveawayNew.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
     path: '/giveaways/:id',
     name: 'GiveawayDetail',
     component: () => import('../views/GiveawayDetail.vue'),

@@ -21,6 +21,7 @@ const adminNavItems = [
 const userNavItems = [
   { path: '/appointments', label: 'My appointments', icon: '📅' },
   { path: '/appointments/book', label: 'Book appointment', icon: '➕' },
+  { path: '/giveaways', label: 'Giveaways', icon: '🎁' },
 ];
 
 function goTo(path) {

@@ -45,7 +45,7 @@ export class Appointment {
   @Column({ type: 'varchar', nullable: true })
   slotId: string | null;
 
-  @ManyToOne(() => AvailabilitySlot, { nullable: true })
+  @ManyToOne(() => AvailabilitySlot, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'slotId' })
   slot: AvailabilitySlot | null;
 

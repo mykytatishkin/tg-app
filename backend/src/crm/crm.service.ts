@@ -144,8 +144,10 @@ export class CrmService {
 
   async deleteAvailability(user: User, id: string) {
     const masterId = await this.getMasterId(user);
-    const result = await this.slotRepo.delete({ id, masterId });
-    if (result.affected === 0) throw new ForbiddenException('Slot not found');
+    const slot = await this.slotRepo.findOne({ where: { id, masterId } });
+    if (!slot) throw new ForbiddenException('Slot not found');
+    await this.appointmentRepo.update({ slotId: id }, { slotId: null });
+    await this.slotRepo.delete({ id, masterId });
   }
 
   async getAppointments(user: User, from?: string, to?: string, upcomingOnly?: boolean) {

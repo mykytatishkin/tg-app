@@ -38,6 +38,17 @@ export class GiveawaysController {
     return this.giveawaysService.createGiveaway(req.user, dto);
   }
 
+  @Get(':id/participants')
+  @UseGuards(MasterOrAdminGuard)
+  getParticipants(@Request() req: { user: User }, @Param('id') id: string) {
+    return this.giveawaysService.getParticipants(req.user, id);
+  }
+
+  @Get(':id/winners')
+  getWinners(@Param('id') id: string) {
+    return this.giveawaysService.getWinners(id);
+  }
+
   @Get(':id')
   getGiveaway(@Request() req: { user: User }, @Param('id') id: string) {
     return this.giveawaysService.getGiveaway(req.user, id);
@@ -72,16 +83,5 @@ export class GiveawaysController {
     @Body() dto?: DrawGiveawayDto,
   ) {
     return this.giveawaysService.draw(req.user, id, dto);
-  }
-
-  @Get(':id/participants')
-  @UseGuards(MasterOrAdminGuard)
-  getParticipants(@Request() req: { user: User }, @Param('id') id: string) {
-    return this.giveawaysService.getParticipants(req.user, id);
-  }
-
-  @Get(':id/winners')
-  getWinners(@Param('id') id: string) {
-    return this.giveawaysService.getWinners(id);
   }
 }
