@@ -265,8 +265,8 @@ onMounted(load);
           </div>
         </div>
 
-        <div v-if="isByReference" class="space-y-2">
-          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Финальная цена (по референсу)</span>
+        <div class="space-y-2">
+          <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Финальная сумма</span>
           <div v-if="!editingFinalPrice" class="mt-1 flex items-center gap-2">
             <span v-if="appointment.finalPrice != null" class="font-medium">{{ appointment.finalPrice }} €</span>
             <span v-else class="text-[var(--tg-theme-hint-color,#999)]">Не указана</span>

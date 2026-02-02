@@ -11,7 +11,8 @@ const services = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showForm = ref(false);
-const form = ref({ name: '', durationMinutes: 60, price: '', forModels: false });
+const editingService = ref(null);
+const form = ref({ name: '', durationMinutes: 60, price: '', cost: '', forModels: false });
 const submitting = ref(false);
 const deletingId = ref(null);
 const togglingForModelsId = ref(null);
@@ -30,33 +31,56 @@ async function load() {
 
 function openAddForm() {
   hapticFeedback?.('light');
-  form.value = { name: '', durationMinutes: 60, price: '', forModels: false };
+  editingService.value = null;
+  form.value = { name: '', durationMinutes: 60, price: '', cost: '', forModels: false };
   showForm.value = true;
   error.value = null;
 }
 
-async function addService() {
+function openEditForm(s) {
+  hapticFeedback?.('light');
+  editingService.value = s;
+  form.value = {
+    name: s.name,
+    durationMinutes: s.durationMinutes ?? 60,
+    price: s.price != null ? String(s.price) : '',
+    cost: s.cost != null ? String(s.cost) : '',
+    forModels: !!s.forModels,
+  };
+  showForm.value = true;
+  error.value = null;
+}
+
+async function saveService() {
   if (!form.value.name?.trim()) {
     error.value = 'Введите название услуги.';
     return;
   }
   const duration = Number(form.value.durationMinutes);
   const price = form.value.price === '' ? undefined : Number(form.value.price);
-  if (duration < 1 || (price !== undefined && price < 0)) {
-    error.value = 'Длительность минимум 1 мин; цена не меньше 0.';
+  const cost = form.value.cost === '' ? undefined : Number(form.value.cost);
+  if (duration < 1 || (price !== undefined && price < 0) || (cost !== undefined && cost < 0)) {
+    error.value = 'Длительность минимум 1 мин; цена и себестоимость не меньше 0.';
     return;
   }
   submitting.value = true;
   error.value = null;
   try {
-    await api.post('/crm/services', {
+    const payload = {
       name: form.value.name.trim(),
       durationMinutes: duration,
       price: price,
+      cost: cost,
       forModels: !!form.value.forModels,
-    });
+    };
+    if (editingService.value) {
+      await api.put(`/crm/services/${editingService.value.id}`, payload);
+    } else {
+      await api.post('/crm/services', payload);
+    }
     hapticFeedback?.('light');
     showForm.value = false;
+    editingService.value = null;
     await load();
   } catch (e) {
     error.value = e.message;
@@ -156,6 +180,18 @@ onMounted(load);
         >
         <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Минимум, отображается как «цена+ €».</p>
       </div>
+      <div>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Себестоимость (€, необяз.)</label>
+        <input
+          v-model="form.cost"
+          type="number"
+          min="0"
+          step="0.01"
+          class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          placeholder="0"
+        >
+        <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">Для учёта в статистике заработка.</p>
+      </div>
       <label class="flex items-center gap-2 cursor-pointer">
         <input v-model="form.forModels" type="checkbox" class="rounded">
         <span class="text-sm">Для моделей</span>
@@ -165,9 +201,9 @@ onMounted(load);
           type="button"
           class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] border border-[var(--tg-theme-section-separator-color)] disabled:opacity-60"
           :disabled="submitting"
-          @click="addService"
+          @click="saveService"
         >
-          {{ submitting ? 'Добавляю…' : 'Добавить' }}
+          {{ submitting ? 'Сохранение…' : (editingService ? 'Сохранить' : 'Добавить') }}
         </button>
         <button
           type="button"
@@ -193,13 +229,21 @@ onMounted(load);
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.durationMinutes }} min
             <span v-if="s.price != null"> · {{ s.price }}+ €</span>
+            <span v-if="s.cost != null" class="text-[var(--tg-theme-hint-color,#999)]"> · себест. {{ s.cost }} €</span>
             <span v-if="s.forModels" class="ml-1 text-neutral-400 font-medium">· Для моделей</span>
           </div>
         </div>
-        <div class="flex items-center gap-2 justify-end">
+        <div class="flex flex-wrap items-center gap-2 justify-end">
           <button
             type="button"
-            class="text-sm px-3 py-1.5 rounded border disabled:opacity-50 text-[var(--tg-theme-button-text-color)]"
+            class="text-sm px-3 py-1.5 rounded border border-[var(--tg-theme-section-separator-color)] bg-[var(--tg-theme-section-bg-color)] text-[var(--tg-theme-text-color)] whitespace-nowrap shrink-0"
+            @click="openEditForm(s)"
+          >
+            Редактировать
+          </button>
+          <button
+            type="button"
+            class="text-sm px-3 py-1.5 rounded border disabled:opacity-50 text-[var(--tg-theme-button-text-color)] whitespace-nowrap shrink-0"
             :class="s.forModels ? 'bg-[var(--tg-theme-button-color)] border-[var(--tg-theme-section-separator-color)]' : 'bg-[var(--tg-theme-section-bg-color)] border-[var(--tg-theme-section-separator-color)]'"
             :disabled="togglingForModelsId === s.id"
             @click="toggleForModels(s)"
@@ -208,7 +252,7 @@ onMounted(load);
           </button>
           <button
             type="button"
-            class="text-sm px-3 py-1.5 rounded border border-[var(--tg-theme-section-separator-color)] bg-[var(--tg-theme-section-bg-color)] text-[var(--tg-theme-text-color)] disabled:opacity-50"
+            class="text-sm px-3 py-1.5 rounded border border-[var(--tg-theme-section-separator-color)] bg-[var(--tg-theme-section-bg-color)] text-[var(--tg-theme-text-color)] disabled:opacity-50 whitespace-nowrap shrink-0"
             :disabled="deletingId === s.id"
             @click="removeService(s.id)"
           >
