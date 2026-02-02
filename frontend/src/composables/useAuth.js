@@ -70,6 +70,22 @@ export function useAuth() {
     return false;
   }
 
+  /** Refresh user from backend (e.g. after isMaster changed in DB). */
+  async function refreshUser() {
+    if (!token.value) return;
+    try {
+      const res = await fetch(getApiUrl('/auth/me'), {
+        headers: { Authorization: `Bearer ${token.value}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      user.value = data;
+      localStorage.setItem(`${STORAGE_KEY}_user`, JSON.stringify(data));
+    } catch (_) {
+      // ignore
+    }
+  }
+
   return {
     token,
     user,
@@ -80,6 +96,8 @@ export function useAuth() {
     loginWithTelegram,
     logout,
     getAuthHeaders,
+    getApiUrl,
     ensureAuth,
+    refreshUser,
   };
 }

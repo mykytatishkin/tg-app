@@ -55,6 +55,12 @@ export class AuthService {
     };
   }
 
+  async getMe(userId: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    return this.sanitizeUser(user);
+  }
+
   async linkInstagram(userId: string, instagramId: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();

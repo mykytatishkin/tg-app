@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuth } from '../composables/useAuth';
 
 const routes = [
   {
@@ -13,22 +14,40 @@ const routes = [
     component: () => import('../views/Login.vue'),
   },
   {
-    path: '/clients',
-    name: 'Clients',
-    component: () => import('../views/Clients.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
     path: '/appointments',
     name: 'Appointments',
     component: () => import('../views/Appointments.vue'),
     meta: { requiresAuth: true },
   },
   {
-    path: '/services',
-    name: 'Services',
-    component: () => import('../views/Services.vue'),
+    path: '/appointments/book',
+    name: 'BookAppointment',
+    component: () => import('../views/AppointmentsBook.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/clients',
+    name: 'AdminClients',
+    component: () => import('../views/admin/Clients.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
+    path: '/admin/services',
+    name: 'AdminServices',
+    component: () => import('../views/admin/Services.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
+    path: '/admin/appointments',
+    name: 'AdminAppointments',
+    component: () => import('../views/admin/Appointments.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
+    path: '/admin/availability',
+    name: 'AdminAvailability',
+    component: () => import('../views/admin/Availability.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
   },
   {
     path: '/giveaways',

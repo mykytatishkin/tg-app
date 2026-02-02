@@ -17,6 +17,12 @@ export class AuthController {
     return this.authService.loginWithTelegram(req.telegramUser);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async me(@Request() req: { user: import('./entities/user.entity').User }) {
+    return this.authService.getMe(req.user.id);
+  }
+
   @Post('instagram/link')
   @UseGuards(JwtAuthGuard)
   async linkInstagram(
