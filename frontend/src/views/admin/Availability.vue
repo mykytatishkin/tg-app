@@ -4,6 +4,20 @@ import { useRouter } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
 
+const DEFAULT_DURATION_HOURS = 2;
+
+function addHoursToTime(timeStr, hours) {
+  const [h, m] = timeStr.split(':').map(Number);
+  const totalMin = h * 60 + m + hours * 60;
+  const newH = Math.floor(totalMin / 60) % 24;
+  const newM = totalMin % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}:00`;
+}
+
+function getDefaultEndTime(startTime) {
+  return addHoursToTime(startTime, DEFAULT_DURATION_HOURS);
+}
+
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 
@@ -11,9 +25,10 @@ const slots = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const showForm = ref(false);
-const form = ref({ date: '', startTime: '09:00', endTime: '18:00' });
+const form = ref({ date: '', startTime: '09:00', endTime: '11:00' });
 const submitting = ref(false);
 const deletingId = ref(null);
+const lastAdded = ref(null);
 
 async function load() {
   loading.value = true;
@@ -27,23 +42,50 @@ async function load() {
   }
 }
 
+function openFormWithSameDate() {
+  if (!lastAdded.value) return;
+  hapticFeedback?.('light');
+  const nextStart = lastAdded.value.endTime;
+  form.value = {
+    date: lastAdded.value.date,
+    startTime: nextStart.slice(0, 5),
+    endTime: getDefaultEndTime(nextStart).slice(0, 5),
+  };
+  showForm.value = true;
+  lastAdded.value = null;
+}
+
+function openNewForm() {
+  const today = new Date().toISOString().slice(0, 10);
+  form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5) };
+  showForm.value = true;
+  lastAdded.value = null;
+}
+
+function onFormStartTimeChange() {
+  form.value.endTime = getDefaultEndTime(form.value.startTime).slice(0, 5);
+}
+
 async function addSlot() {
   if (!form.value.date || !form.value.startTime || !form.value.endTime) {
     error.value = 'Fill date, start and end time.';
     return;
   }
+  const startTime = form.value.startTime.length === 5 ? form.value.startTime + ':00' : form.value.startTime;
+  const endTime = form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime;
   submitting.value = true;
   error.value = null;
   try {
     await api.post('/crm/availability', {
       date: form.value.date,
-      startTime: form.value.startTime,
-      endTime: form.value.endTime,
+      startTime,
+      endTime,
       isAvailable: true,
     });
     hapticFeedback?.('light');
+    lastAdded.value = { date: form.value.date, endTime };
     showForm.value = false;
-    form.value = { date: '', startTime: '09:00', endTime: '18:00' };
+    form.value = { date: '', startTime: '09:00', endTime: '11:00' };
     await load();
   } catch (e) {
     error.value = e.message;
@@ -88,16 +130,26 @@ onMounted(load);
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
 
-    <button
-      v-if="!showForm"
-      type="button"
-      class="w-full mb-6 py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
-      @click="showForm = true"
-    >
-      Add slot
-    </button>
+    <div v-if="!showForm" class="mb-6 space-y-3">
+      <button
+        type="button"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#3390ec)] text-[var(--tg-theme-button-text-color,#fff)]"
+        @click="openNewForm"
+      >
+        Add slot
+      </button>
+      <button
+        v-if="lastAdded"
+        type="button"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
+        @click="openFormWithSameDate"
+      >
+        Continue with same date
+      </button>
+    </div>
 
     <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">Default interval: {{ DEFAULT_DURATION_HOURS }} h</p>
       <input
         v-model="form.date"
         type="date"
@@ -108,6 +160,7 @@ onMounted(load);
           v-model="form.startTime"
           type="time"
           class="flex-1 p-3 rounded-lg bg-[var(--tg-theme-bg-color,#fff)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          @change="onFormStartTimeChange"
         >
         <input
           v-model="form.endTime"

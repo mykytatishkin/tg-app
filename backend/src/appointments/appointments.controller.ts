@@ -13,14 +13,19 @@ import { AppointmentsService } from './appointments.service';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { User } from '../auth/entities/user.entity';
 
-@Controller('api/appointments')
+@Controller('appointments')
 @UseGuards(JwtAuthGuard)
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
+  @Get('masters')
+  getMasters() {
+    return this.appointmentsService.getMasters();
+  }
+
   @Get('services')
-  getServices() {
-    return this.appointmentsService.getServices();
+  getServices(@Query('masterId') masterId?: string) {
+    return this.appointmentsService.getServices(masterId);
   }
 
   @Get('mine')
@@ -31,6 +36,7 @@ export class AppointmentsController {
   @Get('available-slots')
   getAvailableSlots(
     @Query('serviceId') serviceId: string,
+    @Query('masterId') masterId: string,
     @Query('date') date: string,
     @Query('from') from: string,
     @Query('to') to: string,
@@ -39,10 +45,10 @@ export class AppointmentsController {
       throw new BadRequestException('serviceId is required');
     }
     if (from && to) {
-      return this.appointmentsService.getAvailableSlotsInRange(serviceId, from, to);
+      return this.appointmentsService.getAvailableSlotsInRange(serviceId, from, to, masterId);
     }
     if (date) {
-      return this.appointmentsService.getAvailableSlots(date, serviceId);
+      return this.appointmentsService.getAvailableSlots(date, serviceId, masterId);
     }
     throw new BadRequestException('either date or (from and to) are required');
   }

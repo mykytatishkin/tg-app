@@ -29,10 +29,29 @@ export class AppointmentsService {
     return master.id;
   }
 
-  async getServices() {
-    const masterId = await this.getMasterId();
+  /** List masters for client booking (id, firstName, lastName). */
+  async getMasters(): Promise<{ id: string; firstName: string; lastName: string | null }[]> {
+    const masters = await this.userRepo.find({
+      where: { isMaster: true },
+      select: ['id', 'firstName', 'lastName'],
+      order: { firstName: 'ASC' },
+    });
+    return masters;
+  }
+
+  private async resolveMasterId(masterId?: string): Promise<string> {
+    if (masterId) {
+      const master = await this.userRepo.findOne({ where: { id: masterId, isMaster: true } });
+      if (!master) throw new BadRequestException('Master not found');
+      return master.id;
+    }
+    return this.getMasterId();
+  }
+
+  async getServices(masterId?: string) {
+    const resolved = await this.resolveMasterId(masterId);
     return this.serviceRepo.find({
-      where: { masterId },
+      where: { masterId: resolved },
       order: { name: 'ASC' },
     });
   }
@@ -59,8 +78,8 @@ export class AppointmentsService {
     return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`;
   }
 
-  async getAvailableSlots(date: string, serviceId: string) {
-    const result = await this.getAvailableSlotsForDate(date, serviceId);
+  async getAvailableSlots(date: string, serviceId: string, masterId?: string) {
+    const result = await this.getAvailableSlotsForDate(date, serviceId, masterId);
     return result;
   }
 
@@ -68,20 +87,21 @@ export class AppointmentsService {
   private async getAvailableSlotsForDate(
     date: string,
     serviceId: string,
+    masterId?: string,
   ): Promise<{ startTime: string; endTime: string; slotId?: string }[]> {
-    const masterId = await this.getMasterId();
+    const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
     const service = await this.serviceRepo.findOne({
-      where: { id: serviceId, masterId },
+      where: { id: serviceId, masterId: resolved },
     });
     if (!service) throw new BadRequestException('Service not found');
 
     const slots = await this.slotRepo.find({
-      where: { masterId, date, isAvailable: true },
+      where: { masterId: resolved, date, isAvailable: true },
       order: { startTime: 'ASC' },
     });
 
     const booked = await this.appointmentRepo.find({
-      where: { masterId, date, status: AppointmentStatus.SCHEDULED },
+      where: { masterId: resolved, date, status: AppointmentStatus.SCHEDULED },
       relations: ['service'],
     });
 
@@ -119,10 +139,11 @@ export class AppointmentsService {
     serviceId: string,
     fromDate: string,
     toDate: string,
+    masterId?: string,
   ): Promise<{ date: string; startTime: string; endTime: string; slotId?: string }[]> {
-    const masterId = await this.getMasterId();
+    const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
     const service = await this.serviceRepo.findOne({
-      where: { id: serviceId, masterId },
+      where: { id: serviceId, masterId: resolved },
     });
     if (!service) throw new BadRequestException('Service not found');
 
@@ -136,7 +157,7 @@ export class AppointmentsService {
 
     while (current <= to) {
       const dateStr = current.toISOString().slice(0, 10);
-      const daySlots = await this.getAvailableSlotsForDate(dateStr, serviceId);
+      const daySlots = await this.getAvailableSlotsForDate(dateStr, serviceId, resolved);
       for (const s of daySlots) {
         result.push({ date: dateStr, startTime: s.startTime, endTime: s.endTime, slotId: s.slotId });
       }
@@ -147,7 +168,7 @@ export class AppointmentsService {
   }
 
   async book(user: User, dto: BookAppointmentDto) {
-    const masterId = await this.getMasterId();
+    const masterId = await this.resolveMasterId(dto.masterId);
 
     let client = await this.clientRepo.findOne({
       where: { telegramId: user.telegramId, masterId },

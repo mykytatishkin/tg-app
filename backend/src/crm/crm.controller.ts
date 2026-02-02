@@ -23,7 +23,7 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { User } from '../auth/entities/user.entity';
 
-@Controller('api/crm')
+@Controller('crm')
 @UseGuards(JwtAuthGuard, MasterOrAdminGuard)
 export class CrmController {
   constructor(private readonly crmService: CrmService) {}
