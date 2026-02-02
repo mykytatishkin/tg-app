@@ -23,7 +23,7 @@ const adminNavItems = [
 const userNavItems = [
   { path: '/appointments', label: 'Мои записи', icon: '/icons/appointments.png' },
   { path: '/appointments/book', label: 'Записаться', icon: '➕' },
-  { path: '/promo', label: 'Актуальные акции', icon: '🏷️' },
+  { path: '/promo', label: 'Скидки', icon: '🏷️' },
   { path: '/giveaways', label: 'Розыгрыши', icon: '/icons/giveaways.png' },
 ];
 

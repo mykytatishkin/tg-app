@@ -7,6 +7,7 @@ import { Service } from '../crm/entities/service.entity';
 import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
+import { BotService } from '../bot/bot.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -21,6 +22,7 @@ export class AppointmentsService {
     private appointmentRepo: Repository<Appointment>,
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
+    private botService: BotService,
   ) {}
 
   private async getMasterId(): Promise<string> {
@@ -115,7 +117,7 @@ export class AppointmentsService {
     date: string,
     serviceId: string,
     masterId?: string,
-  ): Promise<{ startTime: string; endTime: string; slotId?: string }[]> {
+  ): Promise<{ startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[]> {
     const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
     const service = await this.serviceRepo.findOne({
       where: { id: serviceId, masterId: resolved },
@@ -133,7 +135,7 @@ export class AppointmentsService {
     });
 
     const duration = service.durationMinutes;
-    const freeSlots: { startTime: string; endTime: string; slotId?: string }[] = [];
+    const freeSlots: { startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[] = [];
 
     for (const slot of slots) {
       if (slot.forModels) continue;
@@ -155,7 +157,8 @@ export class AppointmentsService {
         });
 
         if (!overlaps) {
-          freeSlots.push({ startTime: slotStart, endTime: slotEnd, slotId: slot.id });
+          const modifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
+          freeSlots.push({ startTime: slotStart, endTime: slotEnd, slotId: slot.id, priceModifier: modifier });
         }
 
         currentMin += 30;
@@ -192,15 +195,17 @@ export class AppointmentsService {
       .getRawMany()
       .then((rows) => new Set(rows.map((r) => r.a_slotId).filter(Boolean)));
 
-    const result: { date: string; startTime: string; endTime: string; slotId: string }[] = [];
+    const result: { date: string; startTime: string; endTime: string; slotId: string; priceModifier?: number | null }[] = [];
     for (const slot of slots) {
       if (slot.date < fromDate || slot.date > toDate) continue;
       if (bookedSlotIds.has(slot.id)) continue;
+      const modifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
       result.push({
         date: slot.date,
         startTime: slot.startTime,
         endTime: slot.endTime,
         slotId: slot.id,
+        priceModifier: modifier,
       });
     }
     return result;
@@ -212,7 +217,7 @@ export class AppointmentsService {
     fromDate: string,
     toDate: string,
     masterId?: string,
-  ): Promise<{ date: string; startTime: string; endTime: string; slotId?: string }[]> {
+  ): Promise<{ date: string; startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[]> {
     const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
     const service = await this.serviceRepo.findOne({
       where: { id: serviceId, masterId: resolved },
@@ -223,7 +228,7 @@ export class AppointmentsService {
     const to = new Date(toDate);
     if (from > to) return [];
 
-    const result: { date: string; startTime: string; endTime: string; slotId?: string }[] = [];
+    const result: { date: string; startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[] = [];
     const current = new Date(from);
     current.setHours(0, 0, 0, 0);
 
@@ -231,7 +236,7 @@ export class AppointmentsService {
       const dateStr = current.toISOString().slice(0, 10);
       const daySlots = await this.getAvailableSlotsForDate(dateStr, serviceId, resolved);
       for (const s of daySlots) {
-        result.push({ date: dateStr, startTime: s.startTime, endTime: s.endTime, slotId: s.slotId });
+        result.push({ date: dateStr, startTime: s.startTime, endTime: s.endTime, slotId: s.slotId, priceModifier: s.priceModifier });
       }
       current.setDate(current.getDate() + 1);
     }
@@ -327,7 +332,7 @@ export class AppointmentsService {
   async cancelByClient(user: User, appointmentId: string) {
     const appointment = await this.appointmentRepo.findOne({
       where: { id: appointmentId },
-      relations: ['client'],
+      relations: ['client', 'master', 'service'],
     });
     if (!appointment) throw new BadRequestException('Appointment not found');
     if (appointment.client?.telegramId !== user.telegramId) {
@@ -337,6 +342,20 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment cannot be cancelled');
     }
     appointment.status = AppointmentStatus.CANCELLED;
-    return this.appointmentRepo.save(appointment);
+    const saved = await this.appointmentRepo.save(appointment);
+
+    const masterTgId = appointment.master?.telegramId?.trim();
+    if (masterTgId) {
+      const dateStr = typeof appointment.date === 'string' ? appointment.date : (appointment.date as Date).toISOString().slice(0, 10);
+      const timeStr = (appointment.startTime || '').slice(0, 5);
+      const clientName = appointment.client?.name ?? 'Клиент';
+      const clientUsername = appointment.client?.username?.trim();
+      const mention = clientUsername ? `@${clientUsername}` : clientName;
+      const serviceName = appointment.service?.name ?? '';
+      const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${mention}`;
+      await this.botService.sendMessage(masterTgId, text);
+    }
+
+    return saved;
   }
 }

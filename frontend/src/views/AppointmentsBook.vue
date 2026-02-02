@@ -55,7 +55,12 @@ function formatSlotLabel(slot) {
   const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', weekday: 'short' });
   const start = slot.startTime?.slice(0, 5) ?? '';
   const end = slot.endTime?.slice(0, 5) ?? '';
-  return end ? `${dateStr}, ${start} – ${end}` : `${dateStr}, ${start}`;
+  let label = end ? `${dateStr}, ${start} – ${end}` : `${dateStr}, ${start}`;
+  const mod = slot.priceModifier != null && !Number.isNaN(Number(slot.priceModifier)) ? Number(slot.priceModifier) : null;
+  if (mod !== null && mod !== 0) {
+    label += mod < 0 ? ` · −${Math.abs(mod)} €` : ` · +${mod} €`;
+  }
+  return label;
 }
 
 async function loadMasters() {
@@ -352,7 +357,7 @@ watch(selectedServiceId, () => {
                 type="button"
                 class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
                 :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
-                  ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
+                  ? 'bg-white/10 border-2 border-[var(--tg-theme-button-text-color,#e8e8e8)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
                   : forModelsMode
                     ? 'bg-neutral-700/50 border border-neutral-600'
                     : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"

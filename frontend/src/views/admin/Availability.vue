@@ -77,8 +77,8 @@ async function addSlot() {
   const endTime = form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime;
   submitting.value = true;
   error.value = null;
-  const priceModifierRaw = form.value.priceModifier?.trim();
-  const priceModifier = priceModifierRaw === '' || priceModifierRaw == null ? undefined : Number(priceModifierRaw);
+  const priceModifierRaw = String(form.value.priceModifier ?? '').trim();
+  const priceModifier = priceModifierRaw === '' ? undefined : Number(priceModifierRaw);
   try {
     await api.post('/crm/availability', {
       date: form.value.date,

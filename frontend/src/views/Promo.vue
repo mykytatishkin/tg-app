@@ -50,7 +50,7 @@ onMounted(load);
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Актуальные акции</h1>
+      <h1 class="text-2xl font-bold">Скидки</h1>
     </div>
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
