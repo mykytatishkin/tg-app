@@ -136,9 +136,13 @@ input, textarea {
   justify-content: center;
 }
 .nav-icon {
-  height: 1.75rem;
-  width: 1.75rem;
+  height: 2.25rem;
+  width: 2.25rem;
   object-fit: contain;
+}
+.nav-icon-client {
+  height: 2.7rem;
+  width: 2.7rem;
 }
 .nav-icon-rounded {
   border-radius: 50%;

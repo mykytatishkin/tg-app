@@ -24,7 +24,7 @@ const adminNavItems = [
 const userNavItems = [
   { path: '/appointments', label: 'Мои записи', icon: `/icons/appointments.png?${iconV}` },
   { path: '/appointments/book', label: 'Записаться', icon: '➕' },
-  { path: '/promo', label: 'Скидки', icon: '🏷️' },
+  { path: '/promo', label: 'Скидки', icon: `/icons/promo.png?${iconV}` },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
 ];
 
@@ -81,7 +81,7 @@ function handleLogout() {
               v-if="item.icon.startsWith('/')"
               :src="item.icon"
               :alt="item.label"
-              class="nav-icon"
+              :class="['nav-icon', 'nav-icon-client', { 'nav-icon-rounded': item.path === '/promo' }]"
             />
             <span v-else>{{ item.icon }}</span>
           </span>
