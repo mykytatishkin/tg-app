@@ -54,7 +54,8 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       if (appointmentDateTime > windowEnd) continue;
 
       const dateStr = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
-      const dateTimeStr = `${dateStr} ${a.startTime}`;
+      const timeStr = (a.startTime || '').slice(0, 5);
+      const dateTimeStr = `${dateStr} ${timeStr}`;
       const serviceName = a.service?.name ?? '';
       const clientName = a.client?.name ?? 'Client';
       const masterName = a.master ? `${a.master.firstName} ${a.master.lastName || ''}`.trim() : 'Master';

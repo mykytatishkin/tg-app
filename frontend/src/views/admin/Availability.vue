@@ -220,7 +220,7 @@ onMounted(load);
         <div>
           <div class="font-medium">{{ s.date }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ s.startTime }} – {{ s.endTime }}
+            {{ (s.startTime || '').slice(0, 5) }} – {{ (s.endTime || '').slice(0, 5) }}
             <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
             <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €

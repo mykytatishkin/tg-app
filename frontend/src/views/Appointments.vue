@@ -84,7 +84,7 @@ onMounted(load);
         class="p-4 rounded-xl"
         :class="!a.serviceId ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
       >
-        <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
+        <div class="font-medium">{{ a.date }} {{ a.startTime ? a.startTime.slice(0, 5) : '' }}</div>
         <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
           <template v-if="a.serviceId">
             {{ a.service?.name }}

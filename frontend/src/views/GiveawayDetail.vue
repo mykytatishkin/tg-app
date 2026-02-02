@@ -150,7 +150,7 @@ function formatDateRange(start, end) {
   if (!start || !end) return '';
   const s = new Date(start);
   const e = new Date(end);
-  return `${s.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })} – ${e.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  return `${s.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} – ${e.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function clientStatusMessage(g) {
@@ -224,9 +224,9 @@ onMounted(load);
           </template>
           <template v-else>
             <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
-              {{ giveaway.startAt ? new Date(giveaway.startAt).toLocaleString() : '' }}
+              {{ giveaway.startAt ? new Date(giveaway.startAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '' }}
               –
-              {{ giveaway.endAt ? new Date(giveaway.endAt).toLocaleString() : '' }}
+              {{ giveaway.endAt ? new Date(giveaway.endAt).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '' }}
             </div>
             <div v-if="giveaway.conditions?.length" class="mt-3 text-sm">
               <span class="font-medium">Условия:</span>

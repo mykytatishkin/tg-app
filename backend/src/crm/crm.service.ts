@@ -255,7 +255,8 @@ export class CrmService {
     await this.appointmentRepo.update({ id, masterId }, dto);
     const updated = await this.getAppointment(user, id);
     if (dto.status === AppointmentStatus.CANCELLED && previous?.client?.telegramId) {
-      const dateTimeStr = `${previous.date} ${previous.startTime}`;
+      const timeStr = (previous.startTime || '').slice(0, 5);
+      const dateTimeStr = `${previous.date} ${timeStr}`;
       const serviceName = previous.service?.name ?? '';
       const text = `❌ Ваша запись отменена мастером: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}.`;
       await this.botService.sendMessage(previous.client.telegramId, text);
