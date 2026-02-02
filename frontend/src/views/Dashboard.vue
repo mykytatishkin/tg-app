@@ -29,6 +29,7 @@ const adminNavItems = [
   { path: '/admin/availability', label: 'Доступность', icon: `/icons/availability.png?${iconV}` },
   { path: '/admin/drinks', label: 'Напитки', icon: `/icons/drinks.png?${iconV}` },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
+  { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
 ];
 
 const userNavItems = [
