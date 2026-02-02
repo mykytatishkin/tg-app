@@ -99,6 +99,10 @@ export class Appointment {
   @Column({ type: 'timestamp', nullable: true })
   reminderSentAt: Date | null;
 
+  /** Напоминание «желаете что-то выпить?» отправлено за 5–10 мин до сеанса. */
+  @Column({ type: 'timestamp', nullable: true })
+  preSessionReminderSentAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

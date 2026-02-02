@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { TelegramInitGuard } from './guards/telegram-init.guard';
@@ -21,6 +21,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async me(@Request() req: { user: import('./entities/user.entity').User }) {
     return this.authService.getMe(req.user.id);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateMe(
+    @Request() req: { user: import('./entities/user.entity').User },
+    @Body() body: { drinkOptions?: string[] },
+  ) {
+    return this.authService.updateDrinkOptions(req.user.id, body.drinkOptions ?? []);
   }
 
   @Post('instagram/link')

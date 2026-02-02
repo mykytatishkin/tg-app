@@ -6,10 +6,14 @@ import { BotService } from '../bot/bot.service';
 
 const INTERVAL_MS = 15 * 60 * 1000; // 15 min
 const REMINDER_WINDOW_HOURS = 24;
+const PRE_SESSION_INTERVAL_MS = 60 * 1000; // 1 min
+const PRE_SESSION_WINDOW_MIN = 5;
+const PRE_SESSION_WINDOW_MAX = 10;
 
 @Injectable()
 export class RemindersService implements OnModuleInit, OnModuleDestroy {
   private intervalId: ReturnType<typeof setInterval> | null = null;
+  private preSessionIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @InjectRepository(Appointment)
@@ -22,10 +26,20 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     this.intervalId = setInterval(() => {
       this.sendDueReminders().catch((err) => console.error('RemindersService interval error:', err));
     }, INTERVAL_MS);
+
+    this.sendPreSessionReminders().catch((err) =>
+      console.error('RemindersService pre-session init error:', err),
+    );
+    this.preSessionIntervalId = setInterval(() => {
+      this.sendPreSessionReminders().catch((err) =>
+        console.error('RemindersService pre-session interval error:', err),
+      );
+    }, PRE_SESSION_INTERVAL_MS);
   }
 
   onModuleDestroy() {
     if (this.intervalId) clearInterval(this.intervalId);
+    if (this.preSessionIntervalId) clearInterval(this.preSessionIntervalId);
   }
 
   private toAppointmentDateTime(date: string | Date, startTime: string): Date {
@@ -78,6 +92,41 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       }
 
       a.reminderSentAt = new Date();
+      await this.appointmentRepo.save(a);
+    }
+  }
+
+  /** Напоминание за 5–10 мин до сеанса: «желаете что-то выпить?» + кнопки напитков мастера. */
+  private async sendPreSessionReminders() {
+    const now = new Date();
+    const in5min = new Date(now.getTime() + PRE_SESSION_WINDOW_MIN * 60 * 1000);
+    const in10min = new Date(now.getTime() + PRE_SESSION_WINDOW_MAX * 60 * 1000);
+
+    const appointments = await this.appointmentRepo.find({
+      where: {
+        status: AppointmentStatus.SCHEDULED,
+        preSessionReminderSentAt: IsNull(),
+      },
+      relations: ['client', 'master'],
+    });
+
+    for (const a of appointments) {
+      const apptDate = this.toAppointmentDateTime(a.date, a.startTime);
+      if (apptDate < in5min || apptDate > in10min) continue;
+
+      const clientTgId = a.client?.telegramId?.trim() || null;
+      if (!clientTgId) continue;
+
+      const master = a.master as { drinkOptions?: string[] | null } | undefined;
+      const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
+
+      if (drinkOptions.length > 0) {
+        await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions);
+      } else {
+        await this.botService.sendMessage(clientTgId, 'У вас скоро сеанс!');
+      }
+
+      a.preSessionReminderSentAt = new Date();
       await this.appointmentRepo.save(a);
     }
   }

@@ -7,7 +7,8 @@ import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { BotService } from '../bot/bot.service';
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
-const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000; // ровно 14 суток
+const MIN_GAP_BETWEEN_REMINDERS_MS = 23 * 60 * 60 * 1000; // не слать чаще раза в 23 ч
 
 @Injectable()
 export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
@@ -41,9 +42,12 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     const now = Date.now();
     const appUrl = this.configService.get<string>('MINI_APP_URL');
     const bookingUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
+    const sentToTelegramIdsThisRun = new Set<string>();
 
     for (const client of clients) {
-      if (!client.telegramId?.trim()) continue;
+      const tgId = client.telegramId?.trim();
+      if (!tgId) continue;
+      if (sentToTelegramIdsThisRun.has(tgId)) continue;
 
       const lastDone = await this.appointmentRepo
         .createQueryBuilder('a')
@@ -57,23 +61,32 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
         .getRawOne();
 
       if (!lastDone) continue;
-      const lastVisitMs = new Date(`${lastDone.date}T${lastDone.startTime}`).getTime();
-      if (lastVisitMs + TWO_WEEKS_MS > now) continue;
 
-      if (client.lastReminderSentAt && client.lastReminderSentAt.getTime() >= lastVisitMs) continue;
+      const dateStr = typeof lastDone.date === 'string' ? lastDone.date : (lastDone.date as Date)?.toISOString?.()?.slice(0, 10);
+      if (!dateStr) continue;
+      const lastVisitEndOfDay = new Date(`${dateStr}T23:59:59.999`).getTime();
+      if (Number.isNaN(lastVisitEndOfDay) || lastVisitEndOfDay > now) continue;
+
+      if (lastVisitEndOfDay + TWO_WEEKS_MS > now) continue;
+
+      if (client.lastReminderSentAt) {
+        const sentAt = client.lastReminderSentAt.getTime();
+        if (sentAt >= lastVisitEndOfDay && now - sentAt < MIN_GAP_BETWEEN_REMINDERS_MS) continue;
+      }
 
       const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру. Ждём вас!`;
       if (bookingUrl) {
         await this.botService.sendMessageWithWebAppButton(
-          client.telegramId.trim(),
+          tgId,
           text,
           'Записаться',
           bookingUrl,
         );
       } else {
-        await this.botService.sendMessage(client.telegramId.trim(), text);
+        await this.botService.sendMessage(tgId, text);
       }
       await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
+      sentToTelegramIdsThisRun.add(tgId);
     }
   }
 }

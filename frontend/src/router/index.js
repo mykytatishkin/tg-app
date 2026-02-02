@@ -74,6 +74,12 @@ const routes = [
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {
+    path: '/admin/drinks',
+    name: 'AdminDrinks',
+    component: () => import('../views/admin/Drinks.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
     path: '/promo',
     name: 'Promo',
     component: () => import('../views/Promo.vue'),

@@ -13,17 +13,50 @@ export function getSessionKey(ctx: SessionKeyContext): string {
   return id != null ? String(id) : '';
 }
 
-export const QUICK_TEST_QUESTIONS: string[] = [
-  'What is your main goal? (e.g. learn basics, get certified, switch career)',
-  'How much time can you spend per week? (hours)',
-  'What is your experience level? (beginner / intermediate / advanced)',
-  'Do you prefer video, text, or interactive content?',
-  'What topic interests you most? (e.g. programming, design, marketing)',
-  'Are you learning alone or with a team?',
-  'What is your budget range? (free / low / medium / high)',
-  'Do you need a certificate or credential?',
-  'What device do you use most? (desktop / mobile / both)',
-  'Anything else we should know?',
+export interface QuickTestQuestion {
+  text: string;
+  options?: string[];
+}
+
+export const QUICK_TEST_QUESTIONS: QuickTestQuestion[] = [
+  {
+    text: 'Какова ваша главная цель?',
+    options: ['Освоить основы', 'Получить сертификат', 'Сменить карьеру'],
+  },
+  {
+    text: 'Сколько часов в неделю можете уделять?',
+    options: ['1–2 часа', '3–5 часов', '6–10 часов', 'Более 10 часов'],
+  },
+  {
+    text: 'Ваш уровень опыта?',
+    options: ['Начинающий', 'Средний', 'Продвинутый'],
+  },
+  {
+    text: 'Что предпочитаете: видео, текст или интерактив?',
+    options: ['Видео', 'Текст', 'Интерактив'],
+  },
+  {
+    text: 'Какая тема интереснее? (например: программирование, дизайн, маркетинг)',
+  },
+  {
+    text: 'Учитесь в одиночку или в команде?',
+    options: ['Один', 'В команде'],
+  },
+  {
+    text: 'Бюджет на обучение?',
+    options: ['Бесплатно', 'Низкий', 'Средний', 'Высокий'],
+  },
+  {
+    text: 'Нужен сертификат или credential?',
+    options: ['Да', 'Нет', 'Не важно'],
+  },
+  {
+    text: 'Чем пользуетесь чаще: ПК или телефон?',
+    options: ['ПК', 'Телефон', 'Оба'],
+  },
+  {
+    text: 'Что ещё важно учесть? (напишите текстом)',
+  },
 ];
 
 export interface MockCourse {
@@ -60,6 +93,26 @@ const TAG_ALIASES: Record<string, string> = {
   desktop: 'desktop',
   team: 'team',
   career: 'career',
+  // Русские варианты с кнопок
+  начинающий: 'beginner',
+  средний: 'intermediate',
+  продвинутый: 'advanced',
+  основы: 'basics',
+  сертификат: 'certificate',
+  карьеру: 'career',
+  видео: 'video',
+  текст: 'text',
+  интерактив: 'interactive',
+  один: 'beginner',
+  команде: 'team',
+  бесплатно: 'free',
+  низкий: 'low',
+  высокий: 'high',
+  да: 'certificate',
+  нет: 'beginner',
+  пк: 'desktop',
+  телефон: 'mobile',
+  оба: 'medium',
 };
 
 function extractTagsFromAnswers(answers: string[]): Set<string> {

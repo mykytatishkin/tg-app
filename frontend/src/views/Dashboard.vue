@@ -16,6 +16,7 @@ const adminNavItems = [
   { path: '/admin/services', label: 'Услуги', icon: '💅' },
   { path: '/admin/appointments', label: 'Записи', icon: '📅' },
   { path: '/admin/availability', label: 'Доступность', icon: '🕐' },
+  { path: '/admin/drinks', label: 'Напитки', icon: '☕' },
   { path: '/giveaways', label: 'Розыгрыши', icon: '🎁' },
 ];
 

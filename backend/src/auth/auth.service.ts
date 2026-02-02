@@ -68,6 +68,14 @@ export class AuthService {
     return this.userRepository.save(user);
   }
 
+  async updateDrinkOptions(userId: string, drinkOptions: string[]): Promise<Omit<User, never>> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    user.drinkOptions = drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    const saved = await this.userRepository.save(user);
+    return this.sanitizeUser(saved);
+  }
+
   private sanitizeUser(user: User) {
     const { ...rest } = user;
     return rest;
