@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { Between, In, IsNull, LessThan, Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
@@ -260,6 +260,31 @@ export class AppointmentsService {
       });
     }
     return result;
+  }
+
+  /** Returns slots with discount price (priceModifier < 0) for clients — for display on Promo page. */
+  async getDiscountSlots(
+    fromDate: string,
+    toDate: string,
+  ): Promise<{ date: string; startTime: string; endTime: string; priceModifier: number }[]> {
+    const masterId = await this.getMasterId();
+    const slots = await this.slotRepo.find({
+      where: {
+        masterId,
+        isAvailable: true,
+        forModels: false,
+        date: Between(fromDate, toDate),
+        priceModifier: LessThan(0),
+      },
+      select: ['date', 'startTime', 'endTime', 'priceModifier'],
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+    return slots.map((s) => ({
+      date: s.date,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      priceModifier: Number(s.priceModifier),
+    }));
   }
 
   /** Returns all available slots in a date range (for client booking: choose from master's options only). */

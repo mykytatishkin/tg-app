@@ -50,6 +50,23 @@ export class AppointmentsController {
     return this.appointmentsService.updateMyProfile(req.user, body?.instagram);
   }
 
+  @Get('discount-slots')
+  getDiscountSlots(
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    const fromDate = from || new Date().toISOString().slice(0, 10);
+    let toDate: string;
+    if (to) {
+      toDate = to;
+    } else {
+      const end = new Date();
+      end.setDate(end.getDate() + 60);
+      toDate = end.toISOString().slice(0, 10);
+    }
+    return this.appointmentsService.getDiscountSlots(fromDate, toDate);
+  }
+
   @Get('available-slots')
   getAvailableSlots(
     @Query('serviceId') serviceId: string,

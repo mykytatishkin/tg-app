@@ -8,8 +8,22 @@ const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 
 const giveaways = ref([]);
+const discountSlots = ref([]);
 const loading = ref(true);
+const loadingDiscountSlots = ref(true);
 const error = ref(null);
+
+function formatDiscountSlot(slot) {
+  const d = new Date(slot.date + 'T12:00:00');
+  const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', weekday: 'short' });
+  const start = slot.startTime?.slice(0, 5) ?? '';
+  const end = slot.endTime?.slice(0, 5) ?? '';
+  const timeStr = end ? `${start} – ${end}` : start;
+  const discount = slot.priceModifier != null && slot.priceModifier < 0
+    ? ` · −${Math.abs(slot.priceModifier)} €`
+    : '';
+  return `${dateStr}, ${timeStr}${discount}`;
+}
 
 async function load() {
   loading.value = true;
@@ -20,6 +34,17 @@ async function load() {
     error.value = e.message;
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadDiscountSlots() {
+  loadingDiscountSlots.value = true;
+  try {
+    discountSlots.value = await api.get('/appointments/discount-slots');
+  } catch {
+    discountSlots.value = [];
+  } finally {
+    loadingDiscountSlots.value = false;
   }
 }
 
@@ -38,7 +63,10 @@ function goToBook() {
   router.push('/appointments/book');
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadDiscountSlots();
+});
 </script>
 
 <template>
@@ -61,6 +89,22 @@ onMounted(load);
         <p class="text-sm text-[var(--tg-theme-text-color,#000)] mb-3">
           Следите за акциями и спецпредложениями — здесь появляются скидки и бонусы для наших клиентов.
         </p>
+        <div v-if="loadingDiscountSlots" class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Загрузка мест со скидкой…</div>
+        <div v-else-if="discountSlots.length > 0" class="mb-3">
+          <p class="text-sm font-medium text-[var(--tg-theme-text-color,#000)] mb-2">Места со скидочным ценником:</p>
+          <ul class="space-y-1.5 text-sm text-[var(--tg-theme-hint-color,#999)] max-h-48 overflow-y-auto">
+            <li
+              v-for="(slot, i) in discountSlots.slice(0, 30)"
+              :key="i"
+              class="flex items-center gap-2"
+            >
+              <span class="text-[var(--tg-theme-text-color,#000)]">{{ formatDiscountSlot(slot) }}</span>
+            </li>
+          </ul>
+          <p v-if="discountSlots.length > 30" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">
+            и ещё {{ discountSlots.length - 30 }} мест со скидкой — выберите при записи
+          </p>
+        </div>
         <button
           type="button"
           class="w-full py-2.5 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
