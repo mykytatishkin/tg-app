@@ -29,9 +29,17 @@ import { User } from '../auth/entities/user.entity';
 export class CrmController {
   constructor(private readonly crmService: CrmService) {}
 
+  @Get('masters')
+  getMasters(@Request() req: { user: User }) {
+    return this.crmService.getMasters(req.user);
+  }
+
   @Get('clients')
-  getClients(@Request() req: { user: User }) {
-    return this.crmService.getClients(req.user);
+  getClients(
+    @Request() req: { user: User },
+    @Query('masterId') masterId?: string,
+  ) {
+    return this.crmService.getClients(req.user, masterId || undefined);
   }
 
   @Post('clients')
@@ -44,16 +52,18 @@ export class CrmController {
     @Request() req: { user: User },
     @Query('year') year?: string,
     @Query('month') month?: string,
+    @Query('masterId') masterId?: string,
   ) {
-    return this.crmService.getStats(req.user, year, month);
+    return this.crmService.getStats(req.user, year, month, masterId || undefined);
   }
 
   @Get('expenses')
   getExpenses(
     @Request() req: { user: User },
     @Query('yearMonth') yearMonth?: string,
+    @Query('masterId') masterId?: string,
   ) {
-    return this.crmService.getExpenses(req.user, yearMonth);
+    return this.crmService.getExpenses(req.user, yearMonth, masterId || undefined);
   }
 
   @Put('expenses/:yearMonth')
@@ -95,8 +105,11 @@ export class CrmController {
   }
 
   @Get('services')
-  getServices(@Request() req: { user: User }) {
-    return this.crmService.getServices(req.user);
+  getServices(
+    @Request() req: { user: User },
+    @Query('masterId') masterId?: string,
+  ) {
+    return this.crmService.getServices(req.user, masterId || undefined);
   }
 
   @Post('services')
@@ -128,8 +141,9 @@ export class CrmController {
     @Request() req: { user: User },
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('masterId') masterId?: string,
   ) {
-    return this.crmService.getAvailability(req.user, from, to);
+    return this.crmService.getAvailability(req.user, from, to, masterId || undefined);
   }
 
   @Post('availability')
@@ -160,12 +174,14 @@ export class CrmController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('upcomingOnly') upcomingOnly?: string,
+    @Query('masterId') masterId?: string,
   ) {
     return this.crmService.getAppointments(
       req.user,
       from,
       to,
       upcomingOnly === 'true' || upcomingOnly === '1',
+      masterId || undefined,
     );
   }
 

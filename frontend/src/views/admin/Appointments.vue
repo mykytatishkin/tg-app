@@ -3,10 +3,12 @@ import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
+import { useAdminMasters } from '../../composables/useAdminMasters';
 
 const router = useRouter();
 const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
+const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
 
 const MASTER_CANCEL_REASONS = [
   'Болезнь',
@@ -26,18 +28,29 @@ const cancelReason = ref('');
 const cancelOtherText = ref('');
 
 async function load() {
+  if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
   loading.value = true;
   error.value = null;
   try {
-    const url = showPastAndClosed.value
-      ? '/crm/appointments'
-      : '/crm/appointments?upcomingOnly=true';
-    appointments.value = await api.get(url);
+    const params = new URLSearchParams();
+    if (showPastAndClosed.value) params.set('upcomingOnly', 'false');
+    else params.set('upcomingOnly', 'true');
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
+    appointments.value = await api.get('/crm/appointments?' + params.toString());
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
+}
+
+function masterDisplayName(m) {
+  return [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || m.id;
+}
+
+function selectMaster(m) {
+  hapticFeedback?.('light');
+  router.push({ path: '/admin/appointments', query: { masterId: m.id } });
 }
 
 function toggleShowPast() {
@@ -101,24 +114,30 @@ async function confirmMasterCancel() {
 
 function goToDetail(id) {
   hapticFeedback?.('light');
-  const query = showPastAndClosed.value ? { showAll: '1' } : undefined;
-  router.push({ name: 'AdminAppointmentDetail', params: { id }, query });
+  const query = { ...(showPastAndClosed.value ? { showAll: '1' } : {}), ...(isAdmin.value && selectedMasterId.value ? { masterId: selectedMasterId.value } : {}) };
+  router.push({ name: 'AdminAppointmentDetail', params: { id }, query: Object.keys(query).length ? query : undefined });
 }
 
 function goBack() {
   hapticFeedback?.('light');
+  if (isAdmin.value && selectedMasterId.value) {
+    router.push('/admin/appointments');
+    return;
+  }
   router.push('/');
 }
 
-onMounted(() => {
+onMounted(async () => {
   showPastAndClosed.value = route.query.showAll === '1';
-  load();
+  if (isAdmin.value) await loadMasters();
+  await load();
 });
 
 watch(() => route.query.showAll, (val) => {
   showPastAndClosed.value = val === '1';
   load();
 }, { immediate: false });
+watch(selectedMasterId, load);
 </script>
 
 <template>
@@ -130,9 +149,26 @@ watch(() => route.query.showAll, (val) => {
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Записи</h1>
+      <h1 class="text-2xl font-bold">
+        {{ isAdmin && selectedMasterId ? `Записи — ${selectedMasterName || 'Мастер'}` : 'Записи' }}
+      </h1>
     </div>
 
+    <template v-if="isAdmin && !selectedMasterId">
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Выберите мастера, чтобы увидеть его записи</p>
+      <ul class="space-y-3 mb-6">
+        <li
+          v-for="m in masters"
+          :key="m.id"
+          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90 cursor-pointer"
+          @click="selectMaster(m)"
+        >
+          <div class="font-medium">{{ masterDisplayName(m) }}</div>
+        </li>
+      </ul>
+    </template>
+
+    <template v-else>
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <label class="flex items-center gap-2 mb-4 cursor-pointer">
@@ -251,5 +287,6 @@ watch(() => route.query.showAll, (val) => {
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>

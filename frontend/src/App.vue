@@ -26,6 +26,7 @@ router.beforeEach(async (to) => {
     if (!ok) return { name: 'Login' };
   }
   if (to.meta.requiresMaster) {
+    await auth.refreshUser();
     const user = auth.user.value;
     if (!user?.isMaster && !user?.isAdmin) return { path: '/' };
   }

@@ -7,6 +7,7 @@ import { User } from './entities/user.entity';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/telegram.strategy';
+import { AdminOnlyGuard } from './guards/admin-only.guard';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { JwtStrategy } from './strategies/telegram.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, AdminOnlyGuard],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -85,7 +85,12 @@ async function save() {
 
 function goBack() {
   hapticFeedback?.('light');
-  router.push('/admin/clients');
+  const masterId = route.query.masterId;
+  if (masterId) {
+    router.push({ path: '/admin/clients', query: { masterId } });
+  } else {
+    router.push('/admin/clients');
+  }
 }
 
 function formatDate(d) {

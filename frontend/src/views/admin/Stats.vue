@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
+import { useAdminMasters } from '../../composables/useAdminMasters';
 
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
+const { isAdmin, masters, mastersLoading, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
 
 const stats = ref(null);
 const loading = ref(true);
@@ -32,6 +34,7 @@ const monthOptions = computed(() => {
 });
 
 async function load() {
+  if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
   loading.value = true;
   error.value = null;
   try {
@@ -41,6 +44,7 @@ async function load() {
       params.set('year', y);
       params.set('month', m);
     }
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
     const qs = params.toString();
     stats.value = await api.get('/crm/stats' + (qs ? '?' + qs : ''));
   } catch (e) {
@@ -133,10 +137,27 @@ function formatMoney(v) {
 
 function goBack() {
   hapticFeedback?.('light');
+  if (isAdmin.value && selectedMasterId.value) {
+    router.push('/admin/stats');
+    return;
+  }
   router.push('/');
 }
 
-onMounted(load);
+function masterDisplayName(m) {
+  return [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || m.id;
+}
+
+function selectMaster(m) {
+  hapticFeedback?.('light');
+  router.push({ path: '/admin/stats', query: { masterId: m.id } });
+}
+
+onMounted(async () => {
+  if (isAdmin.value) await loadMasters();
+  await load();
+});
+watch([selectedMasterId, filterYearMonth], load);
 </script>
 
 <template>
@@ -148,11 +169,31 @@ onMounted(load);
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Статистика</h1>
+      <h1 class="text-2xl font-bold">
+        {{ isAdmin && selectedMasterId ? `Статистика — ${selectedMasterName || 'Мастер'}` : 'Статистика' }}
+      </h1>
     </div>
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
+    <p v-else-if="isAdmin && !mastersLoading && masters.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">Нет мастеров.</p>
+    <div v-else-if="mastersLoading && isAdmin && !selectedMasterId" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
+
+    <!-- Админ: список мастеров (без выбранного) -->
+    <template v-else-if="isAdmin && !selectedMasterId">
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Выберите мастера, чтобы увидеть его статистику</p>
+      <ul class="space-y-3">
+        <li
+          v-for="m in masters"
+          :key="m.id"
+          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90 cursor-pointer"
+          @click="selectMaster(m)"
+        >
+          <div class="font-medium">{{ masterDisplayName(m) }}</div>
+        </li>
+      </ul>
+    </template>
+
+    <div v-else-if="loading && !stats" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else-if="stats">
       <div class="grid gap-4 mb-6 grid-cols-2">

@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseGuards, Request, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 import { TelegramInitGuard } from './guards/telegram-init.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AdminOnlyGuard } from './guards/admin-only.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +31,27 @@ export class AuthController {
     @Body() body: { drinkOptions?: string[] },
   ) {
     return this.authService.updateDrinkOptions(req.user.id, body.drinkOptions ?? []);
+  }
+
+  @Get('users')
+  @UseGuards(JwtAuthGuard, AdminOnlyGuard)
+  async getAllUsers() {
+    return this.authService.getAllUsersForAdmin();
+  }
+
+  @Get('users/:id')
+  @UseGuards(JwtAuthGuard, AdminOnlyGuard)
+  async getUserById(@Param('id') id: string) {
+    return this.authService.getUserByIdForAdmin(id);
+  }
+
+  @Patch('users/:id')
+  @UseGuards(JwtAuthGuard, AdminOnlyGuard)
+  async updateUserDrinkOptions(
+    @Param('id') id: string,
+    @Body() body: { drinkOptions?: string[] },
+  ) {
+    return this.authService.updateUserDrinkOptionsForAdmin(id, body.drinkOptions ?? []);
   }
 
   @Post('instagram/link')

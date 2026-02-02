@@ -45,6 +45,18 @@ export class GiveawaysService {
     return master.id;
   }
 
+  private async getMasterIds(user: User): Promise<string[]> {
+    if (user.isMaster) return [user.id];
+    if (user.isAdmin) {
+      const masters = await this.userRepo.find({
+        where: { isMaster: true },
+        select: ['id'],
+      });
+      return masters.map((m) => m.id);
+    }
+    return [await this.getMasterId(user)];
+  }
+
   private async getMasterIdOrNull(): Promise<string | null> {
     const master = await this.userRepo.findOne({ where: { isMaster: true } });
     return master?.id ?? null;
@@ -52,9 +64,9 @@ export class GiveawaysService {
 
   async getGiveaways(user: User, forMaster = false) {
     if (forMaster || user.isMaster || user.isAdmin) {
-      const masterId = await this.getMasterId(user);
+      const masterIds = await this.getMasterIds(user);
       return this.giveawayRepo.find({
-        where: { masterId },
+        where: { masterId: In(masterIds) },
         order: { createdAt: 'DESC' },
         relations: ['master'],
       });
@@ -91,9 +103,12 @@ export class GiveawaysService {
       relations: ['master', 'participants', 'participants.user', 'winners', 'winners.user'],
     });
     if (!giveaway) throw new NotFoundException('Giveaway not found');
-    const masterId = user.isMaster ? user.id : (await this.getMasterIdOrNull()) ?? '';
-    const isOwner = giveaway.masterId === masterId;
     const isMasterOrAdmin = user.isMaster || user.isAdmin;
+    const isOwner = user.isMaster
+      ? giveaway.masterId === user.id
+      : user.isAdmin
+        ? (await this.getMasterIds(user)).includes(giveaway.masterId)
+        : giveaway.masterId === ((await this.getMasterIdOrNull()) ?? '');
     if (!isOwner && !isMasterOrAdmin) {
       if (giveaway.status !== GiveawayStatus.ACTIVE && giveaway.status !== GiveawayStatus.ENDED) {
         throw new ForbiddenException('Giveaway not available');
@@ -117,9 +132,10 @@ export class GiveawaysService {
   }
 
   async updateGiveaway(user: User, id: string, dto: UpdateGiveawayDto) {
-    const masterId = await this.getMasterId(user);
-    const existing = await this.giveawayRepo.findOne({ where: { id, masterId } });
+    const masterIds = await this.getMasterIds(user);
+    const existing = await this.giveawayRepo.findOne({ where: { id, masterId: In(masterIds) } });
     if (!existing) throw new ForbiddenException('Giveaway not found');
+    const masterId = existing.masterId;
     const wasActive = existing.status === GiveawayStatus.ACTIVE;
     if (dto.startAt) (dto as any).startAt = new Date(dto.startAt);
     if (dto.endAt) (dto as any).endAt = new Date(dto.endAt);
@@ -158,8 +174,10 @@ export class GiveawaysService {
   }
 
   async deleteGiveaway(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
-    const result = await this.giveawayRepo.delete({ id, masterId });
+    const masterIds = await this.getMasterIds(user);
+    const existing = await this.giveawayRepo.findOne({ where: { id, masterId: In(masterIds) }, select: ['masterId'] });
+    if (!existing) throw new ForbiddenException('Giveaway not found');
+    const result = await this.giveawayRepo.delete({ id, masterId: existing.masterId });
     if (result.affected === 0) throw new ForbiddenException('Giveaway not found');
   }
 
@@ -192,9 +210,9 @@ export class GiveawaysService {
   }
 
   async draw(user: User, giveawayId: string, dto?: DrawGiveawayDto) {
-    const masterId = await this.getMasterId(user);
+    const masterIds = await this.getMasterIds(user);
     const giveaway = await this.giveawayRepo.findOne({
-      where: { id: giveawayId, masterId },
+      where: { id: giveawayId, masterId: In(masterIds) },
       relations: ['participants', 'participants.user'],
     });
     if (!giveaway) throw new ForbiddenException('Giveaway not found');
@@ -247,8 +265,8 @@ export class GiveawaysService {
   }
 
   async getParticipants(user: User, giveawayId: string) {
-    const masterId = await this.getMasterId(user);
-    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId, masterId } });
+    const masterIds = await this.getMasterIds(user);
+    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId, masterId: In(masterIds) } });
     if (!giveaway) throw new ForbiddenException('Giveaway not found');
     return this.participantRepo.find({
       where: { giveawayId },
@@ -259,8 +277,8 @@ export class GiveawaysService {
 
   /** Master manually marks that participant has fulfilled conditions. */
   async verifyParticipant(user: User, giveawayId: string, participantId: string) {
-    const masterId = await this.getMasterId(user);
-    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId, masterId } });
+    const masterIds = await this.getMasterIds(user);
+    const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId, masterId: In(masterIds) } });
     if (!giveaway) throw new ForbiddenException('Giveaway not found');
     const participant = await this.participantRepo.findOne({
       where: { id: participantId, giveawayId },

@@ -76,6 +76,36 @@ export class AuthService {
     return this.sanitizeUser(saved);
   }
 
+  /** Admin only: list all users with id, firstName, lastName, username, isMaster, isAdmin. */
+  async getAllUsersForAdmin(): Promise<
+    { id: string; firstName: string; lastName: string | null; username: string | null; isMaster: boolean; isAdmin: boolean }[]
+  > {
+    const users = await this.userRepository.find({
+      select: ['id', 'firstName', 'lastName', 'username', 'isMaster', 'isAdmin'],
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+    return users;
+  }
+
+  /** Admin only: get user by id (for viewing/editing drinkOptions etc.). */
+  async getUserByIdForAdmin(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'firstName', 'lastName', 'username', 'isMaster', 'isAdmin', 'drinkOptions', 'feedbackOptions'],
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+    return user;
+  }
+
+  /** Admin only: update another user's drinkOptions. */
+  async updateUserDrinkOptionsForAdmin(userId: string, drinkOptions: string[]) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('User not found');
+    user.drinkOptions = drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    const saved = await this.userRepository.save(user);
+    return { id: saved.id, drinkOptions: saved.drinkOptions };
+  }
+
   private sanitizeUser(user: User) {
     const { ...rest } = user;
     return rest;

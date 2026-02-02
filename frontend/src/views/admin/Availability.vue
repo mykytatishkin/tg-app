@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
+import { useAdminMasters } from '../../composables/useAdminMasters';
 
 const DEFAULT_DURATION_HOURS = 2;
 
@@ -20,6 +21,7 @@ function getDefaultEndTime(startTime) {
 
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
+const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
 
 const slots = ref([]);
 const loading = ref(true);
@@ -32,15 +34,26 @@ const deletingId = ref(null);
 const lastAdded = ref(null);
 
 async function load() {
+  if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
   loading.value = true;
   error.value = null;
   try {
-    slots.value = await api.get('/crm/availability');
+    const qs = isAdmin.value && selectedMasterId.value ? `?masterId=${encodeURIComponent(selectedMasterId.value)}` : '';
+    slots.value = await api.get('/crm/availability' + qs);
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
+}
+
+function masterDisplayName(m) {
+  return [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || m.id;
+}
+
+function selectMaster(m) {
+  hapticFeedback?.('light');
+  router.push({ path: '/admin/availability', query: { masterId: m.id } });
 }
 
 function openFormWithSameDate() {
@@ -74,7 +87,8 @@ function onFormStartTimeChange() {
 
 async function loadModelServices() {
   try {
-    const all = await api.get('/crm/services');
+    const qs = isAdmin.value && selectedMasterId.value ? `?masterId=${encodeURIComponent(selectedMasterId.value)}` : '';
+    const all = await api.get('/crm/services' + qs);
     modelServices.value = (all || []).filter((s) => s.forModels);
   } catch {
     modelServices.value = [];
@@ -134,10 +148,18 @@ async function removeSlot(id) {
 
 function goBack() {
   hapticFeedback?.('light');
+  if (isAdmin.value && selectedMasterId.value) {
+    router.push('/admin/availability');
+    return;
+  }
   router.push('/');
 }
 
-onMounted(load);
+onMounted(async () => {
+  if (isAdmin.value) await loadMasters();
+  await load();
+});
+watch(selectedMasterId, load);
 </script>
 
 <template>
@@ -149,9 +171,26 @@ onMounted(load);
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Доступность</h1>
+      <h1 class="text-2xl font-bold">
+        {{ isAdmin && selectedMasterId ? `Доступность — ${selectedMasterName || 'Мастер'}` : 'Доступность' }}
+      </h1>
     </div>
 
+    <template v-if="isAdmin && !selectedMasterId">
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Выберите мастера, чтобы увидеть его слоты</p>
+      <ul class="space-y-3 mb-6">
+        <li
+          v-for="m in masters"
+          :key="m.id"
+          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90 cursor-pointer"
+          @click="selectMaster(m)"
+        >
+          <div class="font-medium">{{ masterDisplayName(m) }}</div>
+        </li>
+      </ul>
+    </template>
+
+    <template v-else>
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
     <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-4">
       Клиенты видят слоты на ближайшие 60 дней — добавляйте слоты в этом диапазоне.
@@ -279,5 +318,6 @@ onMounted(load);
         </button>
       </li>
     </ul>
+    </template>
   </div>
 </template>

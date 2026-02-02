@@ -1,11 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
+import { useAdminMasters } from '../../composables/useAdminMasters';
 
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
+const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
 
 const services = ref([]);
 const loading = ref(true);
@@ -18,15 +20,26 @@ const deletingId = ref(null);
 const togglingForModelsId = ref(null);
 
 async function load() {
+  if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
   loading.value = true;
   error.value = null;
   try {
-    services.value = await api.get('/crm/services');
+    const qs = isAdmin.value && selectedMasterId.value ? `?masterId=${encodeURIComponent(selectedMasterId.value)}` : '';
+    services.value = await api.get('/crm/services' + qs);
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
+}
+
+function masterDisplayName(m) {
+  return [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || m.id;
+}
+
+function selectMaster(m) {
+  hapticFeedback?.('light');
+  router.push({ path: '/admin/services', query: { masterId: m.id } });
 }
 
 function openAddForm() {
@@ -119,10 +132,18 @@ async function toggleForModels(s) {
 
 function goBack() {
   hapticFeedback?.('light');
+  if (isAdmin.value && selectedMasterId.value) {
+    router.push('/admin/services');
+    return;
+  }
   router.push('/');
 }
 
-onMounted(load);
+onMounted(async () => {
+  if (isAdmin.value) await loadMasters();
+  await load();
+});
+watch(selectedMasterId, load);
 </script>
 
 <template>
@@ -134,9 +155,26 @@ onMounted(load);
       >
         ← Назад
       </button>
-      <h1 class="text-2xl font-bold">Услуги</h1>
+      <h1 class="text-2xl font-bold">
+        {{ isAdmin && selectedMasterId ? `Услуги — ${selectedMasterName || 'Мастер'}` : 'Услуги' }}
+      </h1>
     </div>
 
+    <template v-if="isAdmin && !selectedMasterId">
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Выберите мастера, чтобы увидеть его услуги</p>
+      <ul class="space-y-3 mb-6">
+        <li
+          v-for="m in masters"
+          :key="m.id"
+          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] active:opacity-90 cursor-pointer"
+          @click="selectMaster(m)"
+        >
+          <div class="font-medium">{{ masterDisplayName(m) }}</div>
+        </li>
+      </ul>
+    </template>
+
+    <template v-else>
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
     <div v-if="!showForm" class="mb-6">
@@ -261,5 +299,6 @@ onMounted(load);
         </div>
       </li>
     </ul>
+    </template>
   </div>
 </template>

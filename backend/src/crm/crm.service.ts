@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
@@ -46,6 +46,40 @@ export class CrmService {
     return master.id;
   }
 
+  /** For master: [own id]. For admin: all master ids. Otherwise: [resolved single master]. */
+  private async getMasterIds(user: User): Promise<string[]> {
+    if (user.isMaster) return [user.id];
+    if (user.isAdmin) {
+      const masters = await this.userRepo.find({
+        where: { isMaster: true },
+        select: ['id'],
+      });
+      return masters.map((m) => m.id);
+    }
+    return [await this.getMasterId(user)];
+  }
+
+  /** When admin and filterMasterId provided, return [filterMasterId] (validated). Otherwise getMasterIds(user). */
+  private async resolveMasterIdsForFilter(user: User, filterMasterId?: string): Promise<string[]> {
+    if (user.isAdmin && filterMasterId) {
+      const allowed = await this.getMasterIds(user);
+      if (!allowed.includes(filterMasterId)) throw new ForbiddenException('Master not found');
+      return [filterMasterId];
+    }
+    return this.getMasterIds(user);
+  }
+
+  /** List masters (for admin: all isMaster users; for master: self). */
+  async getMasters(user: User): Promise<{ id: string; firstName: string; lastName: string | null }[]> {
+    const masterIds = await this.getMasterIds(user);
+    const users = await this.userRepo.find({
+      where: { id: In(masterIds) },
+      select: ['id', 'firstName', 'lastName'],
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+    return users.map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
+  }
+
   /** Collect all telegramIds to notify about new discounts: clients + registered users (who opened the app). */
   private async getTelegramIdsForDiscountNotification(masterId: string): Promise<string[]> {
     const clients = await this.clientRepo.find({
@@ -67,13 +101,31 @@ export class CrmService {
   /** Id prefix for "user-only" entries (registered but never booked). */
   private static readonly USER_ONLY_PREFIX = 'u-';
 
-  async getClients(user: User) {
-    const masterId = await this.getMasterId(user);
+  async getClients(user: User, filterMasterId?: string) {
+    let masterIds: string[];
+    if (user.isAdmin && filterMasterId) {
+      const allowed = await this.getMasterIds(user);
+      if (!allowed.includes(filterMasterId)) throw new ForbiddenException('Master not found');
+      masterIds = [filterMasterId];
+    } else {
+      masterIds = await this.getMasterIds(user);
+    }
     const clients = await this.clientRepo.find({
-      where: { masterId },
+      where: { masterId: In(masterIds) },
       order: { name: 'ASC' },
       relations: ['appointments'],
     });
+    const masterIdToName =
+      masterIds.length > 1
+        ? new Map(
+            (
+              await this.userRepo.find({
+                where: { id: In(masterIds) },
+                select: ['id', 'firstName', 'lastName'],
+              })
+            ).map((u) => [u.id, [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.id]),
+          )
+        : null;
     const clientTelegramIds = new Set(clients.map((c) => c.telegramId).filter(Boolean));
     const registeredOnly = await this.userRepo.find({
       where: { isMaster: false, isAdmin: false },
@@ -94,15 +146,18 @@ export class CrmService {
             }, new Date(0))
           : null;
       const { appointments: _, ...rest } = c;
-      return {
+      const item: Record<string, unknown> = {
         ...rest,
         visitCount: doneOrScheduled.length,
         lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       };
+      if (masterIdToName?.has(c.masterId)) item.masterName = masterIdToName.get(c.masterId);
+      return item;
     });
+    const singleMasterId = masterIds.length === 1 ? masterIds[0] : null;
     for (const u of registeredOnlyForMaster) {
       const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || 'Без имени';
-      list.push({
+      const item: Record<string, unknown> = {
         id: `${CrmService.USER_ONLY_PREFIX}${u.id}`,
         name,
         telegramId: u.telegramId,
@@ -112,14 +167,22 @@ export class CrmService {
         notes: null,
         masterNickname: null,
         lastReminderSentAt: null,
-        masterId,
+        masterId: singleMasterId ?? masterIds[0],
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
         visitCount: 0,
         lastVisitAt: null,
-      });
+      };
+      if (singleMasterId && masterIdToName?.has(singleMasterId))
+        item.masterName = masterIdToName.get(singleMasterId);
+      list.push(item);
     }
-    list.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    list.sort((a, b) =>
+      String((a as { name?: string }).name ?? '').localeCompare(
+        String((b as { name?: string }).name ?? ''),
+        'ru',
+      ),
+    );
     return list;
   }
 
@@ -130,7 +193,7 @@ export class CrmService {
   }
 
   async getClient(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
+    const masterIds = await this.getMasterIds(user);
     if (id.startsWith(CrmService.USER_ONLY_PREFIX)) {
       const userId = id.slice(CrmService.USER_ONLY_PREFIX.length);
       const u = await this.userRepo.findOne({
@@ -138,9 +201,10 @@ export class CrmService {
       });
       if (!u?.telegramId) throw new ForbiddenException('Client not found');
       const hasClient = await this.clientRepo.findOne({
-        where: { masterId, telegramId: u.telegramId },
+        where: { masterId: In(masterIds), telegramId: u.telegramId },
       });
       if (hasClient) throw new ForbiddenException('Client not found');
+      const masterId = masterIds[0];
       const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || 'Без имени';
       return {
         id: `${CrmService.USER_ONLY_PREFIX}${u.id}`,
@@ -166,7 +230,7 @@ export class CrmService {
       };
     }
     const client = await this.clientRepo.findOne({
-      where: { id, masterId },
+      where: { id, masterId: In(masterIds) },
       relations: ['appointments', 'appointments.service'],
     });
     if (!client) throw new ForbiddenException('Client not found');
@@ -238,7 +302,8 @@ export class CrmService {
   }
 
   async updateClient(user: User, id: string, dto: UpdateClientDto) {
-    const masterId = await this.getMasterId(user);
+    const masterIds = await this.getMasterIds(user);
+    const masterId = masterIds[0];
     if (id.startsWith(CrmService.USER_ONLY_PREFIX)) {
       const userId = id.slice(CrmService.USER_ONLY_PREFIX.length);
       const u = await this.userRepo.findOne({
@@ -246,10 +311,10 @@ export class CrmService {
       });
       if (!u?.telegramId) throw new ForbiddenException('Client not found');
       let client = await this.clientRepo.findOne({
-        where: { masterId, telegramId: u.telegramId },
+        where: { masterId: In(masterIds), telegramId: u.telegramId },
       });
       if (!client) {
-        const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || dto.name ?? 'Без имени';
+        const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || (dto.name ?? 'Без имени');
         client = this.clientRepo.create({
           masterId,
           name: dto.name ?? name,
@@ -267,7 +332,9 @@ export class CrmService {
       }
       return this.getClient(user, client.id);
     }
-    await this.clientRepo.update({ id, masterId }, dto);
+    const client = await this.clientRepo.findOne({ where: { id, masterId: In(masterIds) } });
+    if (!client) throw new ForbiddenException('Client not found');
+    await this.clientRepo.update({ id, masterId: client.masterId }, dto);
     return this.getClient(user, id);
   }
 
@@ -300,15 +367,15 @@ export class CrmService {
   }
 
   async deleteClient(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
-    const result = await this.clientRepo.delete({ id, masterId });
+    const masterIds = await this.getMasterIds(user);
+    const result = await this.clientRepo.delete({ id, masterId: In(masterIds) });
     if (result.affected === 0) throw new ForbiddenException('Client not found');
   }
 
-  async getServices(user: User) {
-    const masterId = await this.getMasterId(user);
+  async getServices(user: User, filterMasterId?: string) {
+    const masterIds = await this.resolveMasterIdsForFilter(user, filterMasterId);
     return this.serviceRepo.find({
-      where: { masterId },
+      where: { masterId: In(masterIds) },
       order: { name: 'ASC' },
     });
   }
@@ -324,32 +391,32 @@ export class CrmService {
   }
 
   async getService(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
+    const masterIds = await this.getMasterIds(user);
     const service = await this.serviceRepo.findOne({
-      where: { id, masterId },
+      where: { id, masterId: In(masterIds) },
     });
     if (!service) throw new ForbiddenException('Service not found');
     return service;
   }
 
   async updateService(user: User, id: string, dto: UpdateServiceDto) {
-    const masterId = await this.getMasterId(user);
-    await this.serviceRepo.update({ id, masterId }, dto);
+    const service = await this.getService(user, id);
+    await this.serviceRepo.update({ id, masterId: service.masterId }, dto);
     return this.getService(user, id);
   }
 
   async deleteService(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
-    const result = await this.serviceRepo.delete({ id, masterId });
+    const service = await this.getService(user, id);
+    const result = await this.serviceRepo.delete({ id, masterId: service.masterId });
     if (result.affected === 0) throw new ForbiddenException('Service not found');
   }
 
-  async getAvailability(user: User, from?: string, to?: string) {
-    const masterId = await this.getMasterId(user);
+  async getAvailability(user: User, from?: string, to?: string, filterMasterId?: string) {
+    const masterIds = await this.resolveMasterIdsForFilter(user, filterMasterId);
     const qb = this.slotRepo
       .createQueryBuilder('slot')
       .leftJoinAndSelect('slot.service', 'service')
-      .where('slot.masterId = :masterId', { masterId })
+      .where('slot.masterId IN (:...masterIds)', { masterIds })
       .orderBy('slot.date', 'ASC')
       .addOrderBy('slot.startTime', 'ASC');
     if (from) qb.andWhere('slot.date >= :from', { from });
@@ -427,9 +494,10 @@ export class CrmService {
   }
 
   async updateAvailability(user: User, id: string, dto: UpdateAvailabilityDto) {
-    const masterId = await this.getMasterId(user);
-    const slot = await this.slotRepo.findOne({ where: { id, masterId } });
+    const masterIds = await this.getMasterIds(user);
+    const slot = await this.slotRepo.findOne({ where: { id, masterId: In(masterIds) } });
     if (!slot) throw new ForbiddenException('Slot not found');
+    const masterId = slot.masterId;
     const date = dto.date ?? slot.date;
     const startTime = dto.startTime ?? slot.startTime;
     const endTime = dto.endTime ?? slot.endTime;
@@ -468,7 +536,7 @@ export class CrmService {
     const oldPriceModifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
     const hadDiscount = oldPriceModifier != null && oldPriceModifier < 0;
 
-    const updateData = { ...dto };
+    const updateData = { ...dto } as Record<string, unknown>;
     if (forModels !== true) updateData.serviceId = null;
     else if (dto.serviceId) updateData.serviceId = dto.serviceId.trim();
     await this.slotRepo.update({ id, masterId }, updateData);
@@ -489,20 +557,21 @@ export class CrmService {
   }
 
   async deleteAvailability(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
-    const slot = await this.slotRepo.findOne({ where: { id, masterId } });
+    const masterIds = await this.getMasterIds(user);
+    const slot = await this.slotRepo.findOne({ where: { id, masterId: In(masterIds) } });
     if (!slot) throw new ForbiddenException('Slot not found');
+    const masterId = slot.masterId;
     await this.appointmentRepo.update({ slotId: id }, { slotId: null });
     await this.slotRepo.delete({ id, masterId });
   }
 
-  async getAppointments(user: User, from?: string, to?: string, upcomingOnly?: boolean) {
-    const masterId = await this.getMasterId(user);
+  async getAppointments(user: User, from?: string, to?: string, upcomingOnly?: boolean, filterMasterId?: string) {
+    const masterIds = await this.resolveMasterIdsForFilter(user, filterMasterId);
     const qb = this.appointmentRepo
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.client', 'client')
       .leftJoinAndSelect('a.service', 'service')
-      .where('a.masterId = :masterId', { masterId })
+      .where('a.masterId IN (:...masterIds)', { masterIds })
       .orderBy('a.date', 'DESC')
       .addOrderBy('a.startTime', 'DESC');
     if (from) qb.andWhere('a.date >= :from', { from });
@@ -528,9 +597,9 @@ export class CrmService {
   }
 
   async getAppointment(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
+    const masterIds = await this.getMasterIds(user);
     const appointment = await this.appointmentRepo.findOne({
-      where: { id, masterId },
+      where: { id, masterId: In(masterIds) },
       relations: ['client', 'service', 'feedback'],
     });
     if (!appointment) throw new ForbiddenException('Appointment not found');
@@ -538,7 +607,8 @@ export class CrmService {
   }
 
   async updateAppointment(user: User, id: string, dto: UpdateAppointmentDto) {
-    const masterId = await this.getMasterId(user);
+    const appointment = await this.getAppointment(user, id);
+    const masterId = appointment.masterId;
     const previous = await this.appointmentRepo.findOne({
       where: { id, masterId },
       relations: ['client', 'service', 'master', 'feedback'],
@@ -584,17 +654,17 @@ export class CrmService {
   }
 
   async deleteAppointment(user: User, id: string) {
-    const masterId = await this.getMasterId(user);
-    const result = await this.appointmentRepo.delete({ id, masterId });
+    const appointment = await this.getAppointment(user, id);
+    const result = await this.appointmentRepo.delete({ id, masterId: appointment.masterId });
     if (result.affected === 0) throw new ForbiddenException('Appointment not found');
   }
 
   /** Get monthly expenses, optionally filtered by yearMonth. */
-  async getExpenses(user: User, yearMonth?: string) {
-    const masterId = await this.getMasterId(user);
+  async getExpenses(user: User, yearMonth?: string, filterMasterId?: string) {
+    const masterIds = await this.resolveMasterIdsForFilter(user, filterMasterId);
     const qb = this.monthlyExpenseRepo
       .createQueryBuilder('e')
-      .where('e.masterId = :masterId', { masterId })
+      .where('e.masterId IN (:...masterIds)', { masterIds })
       .orderBy('e.yearMonth', 'DESC');
     if (yearMonth) qb.andWhere('e.yearMonth = :yearMonth', { yearMonth });
     return qb.getMany();
@@ -622,10 +692,10 @@ export class CrmService {
   }
 
   /** Statistics: services with booking count, total appointments, clients count, earnings by month, feedback. */
-  async getStats(user: User, year?: string, month?: string) {
-    const masterId = await this.getMasterId(user);
+  async getStats(user: User, year?: string, month?: string, filterMasterId?: string) {
+    const masterIds = await this.resolveMasterIdsForFilter(user, filterMasterId);
     const appointments = await this.appointmentRepo.find({
-      where: { masterId },
+      where: { masterId: In(masterIds) },
       relations: ['service', 'feedback'],
     });
     const doneOrScheduled = appointments.filter(
@@ -642,7 +712,7 @@ export class CrmService {
       byServiceMap.get(sid)!.count += 1;
     }
 
-    const clientsCount = await this.clientRepo.count({ where: { masterId } });
+    const clientsCount = await this.clientRepo.count({ where: { masterId: In(masterIds) } });
 
     const byMonthMap = new Map<
       string,
@@ -672,7 +742,7 @@ export class CrmService {
     }
 
     const expenses = await this.monthlyExpenseRepo.find({
-      where: { masterId },
+      where: { masterId: In(masterIds) },
     });
     const expenseByMonth = new Map<string, number>();
     for (const e of expenses) {
