@@ -6,6 +6,7 @@ import {
   Min,
   IsArray,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -37,4 +38,10 @@ export class CreateGiveawayDto {
   @IsOptional()
   @IsArray()
   conditions?: { type: string; value?: string }[];
+
+  /** When true, participant must submit a link proving they fulfilled conditions. */
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  requireConditionsProof?: boolean;
 }

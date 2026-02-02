@@ -87,34 +87,38 @@ onMounted(load);
       <p v-if="giveaways.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
         {{ isMasterOrAdmin ? 'Розыгрышей пока нет. Создайте выше.' : 'Активных розыгрышей пока нет.' }}
       </p>
-      <ul v-else class="space-y-3">
-        <li
-          v-for="g in giveaways"
-          :key="g.id"
-          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90"
-          @click="goToDetail(g.id)"
-        >
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0 flex-1">
-              <div class="font-medium">{{ g.title }}</div>
-              <div v-if="g.description" class="text-sm text-[var(--tg-theme-hint-color,#999)] line-clamp-2 mt-0.5">
-                {{ g.description }}
+      <template v-else>
+        <p v-if="!isMasterOrAdmin && !giveaways.some(g => g.status === 'active')" class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
+          Сейчас нет активных розыгрышей. Ниже — завершённые.
+        </p>
+        <ul class="space-y-3">
+          <li
+            v-for="g in giveaways"
+            :key="g.id"
+            class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90"
+            @click="goToDetail(g.id)"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-medium">{{ g.title }}</div>
+                <div v-if="g.description" class="text-sm text-[var(--tg-theme-hint-color,#999)] line-clamp-2 mt-0.5">
+                  {{ g.description }}
+                </div>
+                <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
+                  {{ g.startAt ? new Date(g.startAt).toLocaleDateString() : '' }}
+                  –
+                  {{ g.endAt ? new Date(g.endAt).toLocaleDateString() : '' }}
+                </div>
               </div>
-              <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
-                {{ g.startAt ? new Date(g.startAt).toLocaleDateString() : '' }}
-                –
-                {{ g.endAt ? new Date(g.endAt).toLocaleDateString() : '' }}
-              </div>
+              <span
+                :class="['shrink-0 text-xs px-2 py-0.5 rounded', statusClass(g.status)]"
+              >
+                {{ statusLabel(g.status) }}
+              </span>
             </div>
-            <span
-              v-if="isMasterOrAdmin"
-              :class="['shrink-0 text-xs px-2 py-0.5 rounded', statusClass(g.status)]"
-            >
-              {{ statusLabel(g.status) }}
-            </span>
-          </div>
-        </li>
-      </ul>
+          </li>
+        </ul>
+      </template>
     </template>
   </div>
 </template>

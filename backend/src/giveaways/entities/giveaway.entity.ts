@@ -52,6 +52,10 @@ export class Giveaway {
   @Column({ type: 'jsonb', nullable: true })
   conditions: { type: string; value?: string }[] | null;
 
+  /** When true, participant must submit a link proving they fulfilled conditions. */
+  @Column({ type: 'boolean', default: false })
+  requireConditionsProof: boolean;
+
   @Column({ type: 'varchar' })
   masterId: string;
 

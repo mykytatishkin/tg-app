@@ -14,6 +14,7 @@ const giveaway = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const participating = ref(false);
+const conditionsProofUrl = ref('');
 const drawing = ref(false);
 const deleting = ref(false);
 const verifyingId = ref(null);
@@ -68,11 +69,26 @@ async function load() {
 
 async function participate() {
   if (!canParticipate.value) return;
+  if (giveaway.value?.requireConditionsProof) {
+    const url = conditionsProofUrl.value?.trim();
+    if (!url) {
+      error.value = 'Укажите ссылку на выполнение условий (скриншот, пост и т.п.).';
+      return;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      error.value = 'Ссылка должна начинаться с https://';
+      return;
+    }
+  }
   participating.value = true;
   error.value = null;
   try {
-    await api.post(`/giveaways/${id.value}/participate`);
+    const body = giveaway.value?.requireConditionsProof && conditionsProofUrl.value?.trim()
+      ? { conditionsProofUrl: conditionsProofUrl.value.trim() }
+      : undefined;
+    await api.post(`/giveaways/${id.value}/participate`, body ?? {});
     hapticFeedback?.('light');
+    conditionsProofUrl.value = '';
     await load();
   } catch (e) {
     error.value = e.message;
@@ -166,6 +182,13 @@ function clientStatusMessage(g) {
 function conditionsText(conditions) {
   if (!conditions?.length) return null;
   return conditions.map((c) => (c.value ? `${c.type}: ${c.value}` : c.type)).join(', ');
+}
+
+function instagramLink(value) {
+  if (!value?.trim()) return null;
+  const v = value.trim().replace(/^@/, '');
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://instagram.com/${v.replace(/^instagram\.com\/?/i, '')}`;
 }
 
 onMounted(load);
@@ -288,6 +311,16 @@ onMounted(load);
           <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
             Выполните условия розыгрыша, затем нажмите «Участвовать». Мастер вручную проверит выполнение.
           </p>
+          <div v-if="giveaway.requireConditionsProof" class="mb-3">
+            <label for="conditions-proof-url" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Ссылка на выполнение условий *</label>
+            <input
+              id="conditions-proof-url"
+              v-model="conditionsProofUrl"
+              type="url"
+              placeholder="https://... (скриншот, пост в сторис и т.п.)"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-sm"
+            >
+          </div>
           <button
             type="button"
             class="w-full py-3 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
@@ -312,10 +345,32 @@ onMounted(load);
           <li
             v-for="p in participants"
             :key="p.id"
-            class="p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-sm"
+            class="p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-sm flex items-center justify-between gap-2 flex-wrap"
           >
-            {{ p.user?.firstName ?? '' }} {{ p.user?.lastName ?? '' }}
-            <span v-if="p.user?.username" class="text-[var(--tg-theme-hint-color,#999)]">@{{ p.user.username }}</span>
+            <span>
+              {{ p.user?.firstName ?? '' }} {{ p.user?.lastName ?? '' }}
+              <span v-if="p.user?.username" class="text-[var(--tg-theme-hint-color,#999)]">@{{ p.user.username }}</span>
+            </span>
+            <span class="flex items-center gap-1.5 shrink-0">
+              <a
+                v-if="p.conditionsProofUrl"
+                :href="p.conditionsProofUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] border border-[var(--tg-theme-section-separator-color,#ccc)]"
+              >
+                Ссылка
+              </a>
+              <a
+                v-if="p.instagram && instagramLink(p.instagram)"
+                :href="instagramLink(p.instagram)"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-2.5 py-1 rounded text-xs font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]"
+              >
+                Instagram
+              </a>
+            </span>
           </li>
         </ul>
       </div>

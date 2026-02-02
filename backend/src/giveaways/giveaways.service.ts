@@ -62,8 +62,11 @@ export class GiveawaysService {
     const masterId = await this.getMasterIdOrNull();
     if (!masterId) return [];
     return this.giveawayRepo.find({
-      where: { status: GiveawayStatus.ACTIVE, masterId },
-      order: { endAt: 'ASC' },
+      where: {
+        status: In([GiveawayStatus.ACTIVE, GiveawayStatus.ENDED]),
+        masterId,
+      },
+      order: { endAt: 'DESC' },
       relations: ['master'],
     });
   }
@@ -77,6 +80,7 @@ export class GiveawaysService {
       endAt: new Date(dto.endAt),
       winnerCount: dto.winnerCount ?? 1,
       status: GiveawayStatus.DRAFT,
+      requireConditionsProof: dto.requireConditionsProof ?? false,
     });
     return this.giveawayRepo.save(giveaway);
   }
@@ -93,6 +97,20 @@ export class GiveawaysService {
     if (!isOwner && !isMasterOrAdmin) {
       if (giveaway.status !== GiveawayStatus.ACTIVE && giveaway.status !== GiveawayStatus.ENDED) {
         throw new ForbiddenException('Giveaway not available');
+      }
+    }
+    if (giveaway.participants?.length && isMasterOrAdmin) {
+      const telegramIds = [...new Set(giveaway.participants.map((p) => p.user?.telegramId).filter(Boolean))] as string[];
+      const clients =
+        telegramIds.length > 0
+          ? await this.clientRepo.find({
+              where: { masterId: giveaway.masterId, telegramId: In(telegramIds) },
+              select: ['telegramId', 'instagram'],
+            })
+          : [];
+      const instagramByTg = new Map(clients.map((c) => [c.telegramId, c.instagram ?? null]));
+      for (const p of giveaway.participants) {
+        (p as any).instagram = p.user?.telegramId ? instagramByTg.get(p.user.telegramId) ?? null : null;
       }
     }
     return giveaway;
@@ -145,7 +163,7 @@ export class GiveawaysService {
     if (result.affected === 0) throw new ForbiddenException('Giveaway not found');
   }
 
-  async participate(user: User, giveawayId: string) {
+  async participate(user: User, giveawayId: string, conditionsProofUrl?: string) {
     const giveaway = await this.giveawayRepo.findOne({ where: { id: giveawayId } });
     if (!giveaway) throw new NotFoundException('Giveaway not found');
     if (giveaway.status !== GiveawayStatus.ACTIVE) {
@@ -158,11 +176,17 @@ export class GiveawaysService {
       where: { giveawayId, userId: user.id },
     });
     if (existing) return { message: 'Already participating', participant: existing };
+    if (giveaway.requireConditionsProof) {
+      const url = (conditionsProofUrl ?? '').trim();
+      if (!url) throw new BadRequestException('Укажите ссылку на выполнение условий (например, скриншот или пост).');
+      if (!/^https?:\/\//i.test(url)) throw new BadRequestException('Ссылка должна начинаться с https://');
+    }
     const hasConditions = giveaway.conditions != null && giveaway.conditions.length > 0;
     const participant = this.participantRepo.create({
       giveawayId,
       userId: user.id,
       conditionsVerified: !hasConditions,
+      conditionsProofUrl: giveaway.requireConditionsProof ? (conditionsProofUrl ?? '').trim() || null : null,
     });
     return this.participantRepo.save(participant);
   }

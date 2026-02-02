@@ -14,6 +14,7 @@ const form = ref({
   startAt: '',
   endAt: '',
   winnerCount: 1,
+  requireConditionsProof: false,
 });
 const submitting = ref(false);
 const error = ref(null);
@@ -63,6 +64,7 @@ async function submit() {
       startAt: start.toISOString(),
       endAt: end.toISOString(),
       winnerCount: count,
+      requireConditionsProof: !!form.value.requireConditionsProof,
     });
     hapticFeedback?.('light');
     router.replace(`/giveaways/${created.id}`);
@@ -149,6 +151,18 @@ defaultDates();
           class="w-full p-3 rounded-lg bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
         >
       </div>
+      <div class="flex items-center justify-between gap-3 p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        <label for="giveaway-require-proof" class="text-sm font-medium text-[var(--tg-theme-text-color,#000)]">Требовать ссылку на выполнение условий</label>
+        <input
+          id="giveaway-require-proof"
+          v-model="form.requireConditionsProof"
+          type="checkbox"
+          class="w-5 h-5 rounded border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+        >
+      </div>
+      <p v-if="form.requireConditionsProof" class="text-xs text-[var(--tg-theme-hint-color,#999)]">
+        Участник при нажатии «Участвовать» должен будет указать ссылку (скриншот, пост и т.п.), подтверждающую выполнение условий.
+      </p>
       <div class="flex gap-2 pt-2">
         <button
           type="submit"

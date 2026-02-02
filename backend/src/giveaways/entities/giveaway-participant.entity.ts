@@ -34,6 +34,10 @@ export class GiveawayParticipant {
   @Column({ type: 'boolean', default: false })
   conditionsVerified: boolean;
 
+  /** Link submitted by participant as proof of fulfilling conditions (when giveaway.requireConditionsProof). */
+  @Column({ type: 'varchar', nullable: true })
+  conditionsProofUrl: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

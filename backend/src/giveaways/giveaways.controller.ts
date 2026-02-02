@@ -81,8 +81,12 @@ export class GiveawaysController {
   }
 
   @Post(':id/participate')
-  participate(@Request() req: { user: User }, @Param('id') id: string) {
-    return this.giveawaysService.participate(req.user, id);
+  participate(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body?: { conditionsProofUrl?: string },
+  ) {
+    return this.giveawaysService.participate(req.user, id, body?.conditionsProofUrl);
   }
 
   @Post(':id/draw')
