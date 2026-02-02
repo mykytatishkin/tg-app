@@ -1,27 +1,37 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
 
 const router = useRouter();
+const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
 
 const appointments = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const updatingId = ref(null);
+const showPastAndClosed = ref(false);
 
 async function load() {
   loading.value = true;
   error.value = null;
   try {
-    appointments.value = await api.get('/crm/appointments');
+    const url = showPastAndClosed.value
+      ? '/crm/appointments'
+      : '/crm/appointments?upcomingOnly=true';
+    appointments.value = await api.get(url);
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
+}
+
+function toggleShowPast() {
+  showPastAndClosed.value = !showPastAndClosed.value;
+  load();
 }
 
 async function setStatus(id, status) {
@@ -38,12 +48,26 @@ async function setStatus(id, status) {
   }
 }
 
+function goToDetail(id) {
+  hapticFeedback?.('light');
+  const query = showPastAndClosed.value ? { showAll: '1' } : undefined;
+  router.push({ name: 'AdminAppointmentDetail', params: { id }, query });
+}
+
 function goBack() {
   hapticFeedback?.('light');
   router.push('/');
 }
 
-onMounted(load);
+onMounted(() => {
+  showPastAndClosed.value = route.query.showAll === '1';
+  load();
+});
+
+watch(() => route.query.showAll, (val) => {
+  showPastAndClosed.value = val === '1';
+  load();
+}, { immediate: false });
 </script>
 
 <template>
@@ -59,6 +83,17 @@ onMounted(load);
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
+
+    <label class="flex items-center gap-2 mb-4 cursor-pointer">
+      <input
+        v-model="showPastAndClosed"
+        type="checkbox"
+        class="rounded"
+        @change="load"
+      >
+      <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Show cancelled & done</span>
+    </label>
+
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Loading…</div>
 
     <ul v-else class="space-y-3">
@@ -67,18 +102,34 @@ onMounted(load);
         :key="a.id"
         class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
       >
-        <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
-        <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-          {{ a.client?.name }} · {{ a.service?.name }}
-        </div>
-        <div class="flex items-center gap-2 mt-2">
-          <span class="text-sm capitalize px-2 py-0.5 rounded bg-[var(--tg-theme-section-bg-color,#e5e5e5)]">{{ a.status }}</span>
+        <button
+          type="button"
+          class="w-full text-left"
+          @click="goToDetail(a.id)"
+        >
+          <div class="font-medium">{{ a.date }} {{ a.startTime }}</div>
+          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+            {{ a.client?.name }} · {{ a.service?.name }}
+          </div>
+        </button>
+        <div class="flex items-center gap-2 mt-2 flex-wrap">
+          <span
+            class="text-sm capitalize px-2 py-0.5 rounded"
+            :class="a.status === 'cancelled' ? 'bg-red-600 text-white' : a.status === 'done' ? 'bg-green-600 text-white' : 'bg-[var(--tg-theme-section-bg-color,#e5e5e5)]'"
+          >{{ a.status }}</span>
+          <button
+            type="button"
+            class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-hint-color,#999)] text-white"
+            @click="goToDetail(a.id)"
+          >
+            Details
+          </button>
           <template v-if="a.status === 'scheduled'">
             <button
               type="button"
               class="text-sm px-2 py-1 rounded bg-green-600 text-white disabled:opacity-50"
               :disabled="updatingId === a.id"
-              @click="setStatus(a.id, 'done')"
+              @click.stop="setStatus(a.id, 'done')"
             >
               Done
             </button>
@@ -86,7 +137,7 @@ onMounted(load);
               type="button"
               class="text-sm px-2 py-1 rounded bg-red-600 text-white disabled:opacity-50"
               :disabled="updatingId === a.id"
-              @click="setStatus(a.id, 'cancelled')"
+              @click.stop="setStatus(a.id, 'cancelled')"
             >
               Cancel
             </button>

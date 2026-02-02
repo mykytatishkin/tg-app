@@ -14,6 +14,7 @@ import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { BotService } from '../bot/bot.service';
 
 @Injectable()
 export class CrmService {
@@ -28,6 +29,7 @@ export class CrmService {
     private appointmentRepo: Repository<Appointment>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    private botService: BotService,
   ) {}
 
   private async getMasterId(user: User): Promise<string> {
@@ -146,7 +148,7 @@ export class CrmService {
     if (result.affected === 0) throw new ForbiddenException('Slot not found');
   }
 
-  async getAppointments(user: User, from?: string, to?: string) {
+  async getAppointments(user: User, from?: string, to?: string, upcomingOnly?: boolean) {
     const masterId = await this.getMasterId(user);
     const qb = this.appointmentRepo
       .createQueryBuilder('a')
@@ -157,6 +159,12 @@ export class CrmService {
       .addOrderBy('a.startTime', 'ASC');
     if (from) qb.andWhere('a.date >= :from', { from });
     if (to) qb.andWhere('a.date <= :to', { to });
+    if (upcomingOnly === true) {
+      qb.andWhere('a.status = :scheduled', { scheduled: AppointmentStatus.SCHEDULED });
+      qb.andWhere(
+        '(a.date > CURRENT_DATE OR (a.date = CURRENT_DATE AND a.startTime >= CURRENT_TIME))',
+      );
+    }
     return qb.getMany();
   }
 
@@ -183,8 +191,19 @@ export class CrmService {
 
   async updateAppointment(user: User, id: string, dto: UpdateAppointmentDto) {
     const masterId = await this.getMasterId(user);
+    const previous = await this.appointmentRepo.findOne({
+      where: { id, masterId },
+      relations: ['client', 'service'],
+    });
     await this.appointmentRepo.update({ id, masterId }, dto);
-    return this.getAppointment(user, id);
+    const updated = await this.getAppointment(user, id);
+    if (dto.status === AppointmentStatus.CANCELLED && previous?.client?.telegramId) {
+      const dateTimeStr = `${previous.date} ${previous.startTime}`;
+      const serviceName = previous.service?.name ?? '';
+      const text = `❌ Ваша запись отменена мастером: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}.`;
+      await this.botService.sendMessage(previous.client.telegramId, text);
+    }
+    return updated;
   }
 
   async deleteAppointment(user: User, id: string) {

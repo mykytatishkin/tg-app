@@ -10,6 +10,7 @@ const { hapticFeedback } = useTelegramWebApp();
 const appointments = ref([]);
 const loading = ref(true);
 const error = ref(null);
+const cancellingId = ref(null);
 
 async function load() {
   loading.value = true;
@@ -26,6 +27,20 @@ async function load() {
 function goToBook() {
   hapticFeedback?.('light');
   router.push('/appointments/book');
+}
+
+async function cancelAppointment(id) {
+  cancellingId.value = id;
+  error.value = null;
+  try {
+    await api.post(`/appointments/${id}/cancel`);
+    hapticFeedback?.('light');
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    cancellingId.value = null;
+  }
 }
 
 function goBack() {
@@ -74,6 +89,16 @@ onMounted(load);
           <span v-if="a.service?.durationMinutes"> · {{ a.service.durationMinutes }} min</span>
         </div>
         <div v-if="a.note" class="text-sm mt-1">{{ a.note }}</div>
+        <div v-if="a.status === 'scheduled'" class="mt-2">
+          <button
+            type="button"
+            class="text-sm px-3 py-1.5 rounded-lg bg-red-600 text-white disabled:opacity-50"
+            :disabled="cancellingId === a.id"
+            @click="cancelAppointment(a.id)"
+          >
+            {{ cancellingId === a.id ? 'Cancelling…' : 'Cancel appointment' }}
+          </button>
+        </div>
       </li>
     </ul>
   </div>

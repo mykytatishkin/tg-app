@@ -142,7 +142,7 @@ async function submit() {
   submitting.value = true;
   error.value = null;
   try {
-    await api.post('/appointments/book', {
+    const appointment = await api.post('/appointments/book', {
       masterId: selectedMasterId.value,
       serviceId: selectedServiceId.value,
       date: selectedSlot.value.date,
@@ -152,7 +152,7 @@ async function submit() {
       referenceImageUrl: referenceImageUrl.value || undefined,
     });
     hapticFeedback?.('success');
-    router.push('/appointments');
+    router.push({ name: 'BookingSuccess', query: { id: appointment.id } });
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -230,7 +230,7 @@ watch(selectedServiceId, (newVal) => {
           >
             <option value="">Select service</option>
             <option v-for="s in services" :key="s.id" :value="s.id">
-              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price }}
+              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + ' €' : '' }}
             </option>
           </select>
         </div>

@@ -129,7 +129,7 @@ onMounted(load);
         >
       </div>
       <div>
-        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Price (optional)</label>
+        <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Price (€, optional)</label>
         <input
           v-model="form.price"
           type="number"
@@ -170,7 +170,7 @@ onMounted(load);
           <div class="font-medium">{{ s.name }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             {{ s.durationMinutes }} min
-            <span v-if="s.price != null"> · {{ s.price }}</span>
+            <span v-if="s.price != null"> · {{ s.price }} €</span>
           </div>
         </div>
         <button

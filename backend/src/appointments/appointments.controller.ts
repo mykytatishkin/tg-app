@@ -3,10 +3,12 @@ import {
   Get,
   Post,
   Body,
+  Param,
   Query,
   UseGuards,
   Request,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AppointmentsService } from './appointments.service';
@@ -56,5 +58,19 @@ export class AppointmentsController {
   @Post('book')
   book(@Request() req: { user: User }, @Body() dto: BookAppointmentDto) {
     return this.appointmentsService.book(req.user, dto);
+  }
+
+  @Post(':id/reminder')
+  setReminder(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { enable: boolean },
+  ) {
+    return this.appointmentsService.setReminder(req.user, id, body?.enable === true);
+  }
+
+  @Post(':id/cancel')
+  cancelByClient(@Request() req: { user: User }, @Param('id') id: string) {
+    return this.appointmentsService.cancelByClient(req.user, id);
   }
 }

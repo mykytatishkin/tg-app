@@ -34,4 +34,14 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   onModuleDestroy() {
     this.bot?.stop();
   }
+
+  /** Send a text message to a user by their Telegram ID (chat_id). */
+  async sendMessage(chatId: string, text: string): Promise<void> {
+    if (!this.bot) return;
+    try {
+      await this.bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' });
+    } catch (err) {
+      console.error('Bot sendMessage error:', err);
+    }
+  }
 }

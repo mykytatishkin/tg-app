@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
@@ -200,6 +200,36 @@ export class AppointmentsService {
       note: dto.note ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
     });
+    return this.appointmentRepo.save(appointment);
+  }
+
+  async setReminder(user: User, appointmentId: string, enable: boolean) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId },
+      relations: ['client', 'master'],
+    });
+    if (!appointment) throw new BadRequestException('Appointment not found');
+    const isClient = appointment.client?.telegramId === user.telegramId;
+    const isMaster = appointment.masterId === user.id;
+    if (!isClient && !isMaster) throw new ForbiddenException('Not your appointment');
+    appointment.reminderEnabled = enable;
+    return this.appointmentRepo.save(appointment);
+  }
+
+  /** Client cancels their own appointment. */
+  async cancelByClient(user: User, appointmentId: string) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId },
+      relations: ['client'],
+    });
+    if (!appointment) throw new BadRequestException('Appointment not found');
+    if (appointment.client?.telegramId !== user.telegramId) {
+      throw new ForbiddenException('Only the client who booked can cancel');
+    }
+    if (appointment.status !== AppointmentStatus.SCHEDULED) {
+      throw new BadRequestException('Appointment cannot be cancelled');
+    }
+    appointment.status = AppointmentStatus.CANCELLED;
     return this.appointmentRepo.save(appointment);
   }
 }

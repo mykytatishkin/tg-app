@@ -80,6 +80,12 @@ export class Appointment {
   @Column({ type: 'varchar', nullable: true })
   referenceImageUrl: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  reminderEnabled: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  reminderSentAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

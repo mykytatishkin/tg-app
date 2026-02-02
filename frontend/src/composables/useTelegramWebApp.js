@@ -37,8 +37,16 @@ export function useTelegramWebApp() {
     });
   }
 
+  const impactStyles = ['light', 'medium', 'heavy', 'rigid', 'soft'];
+  const notificationTypes = ['success', 'error', 'warning'];
+
   function hapticFeedback(type = 'light') {
-    webApp?.HapticFeedback?.impactOccurred?.(type);
+    if (notificationTypes.includes(type)) {
+      webApp?.HapticFeedback?.notificationOccurred?.(type);
+    } else {
+      const style = impactStyles.includes(type) ? type : 'light';
+      webApp?.HapticFeedback?.impactOccurred?.(style);
+    }
   }
 
   function getApiUrl(path) {

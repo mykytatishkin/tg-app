@@ -6,9 +6,10 @@ import { AuthModule } from './auth/auth.module';
 import { BotModule } from './bot/bot.module';
 import { CrmModule } from './crm/crm.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { GiveawaysModule } from './giveaways/giveaways.module';
 
 @Module({
-  imports: [SharedModule, AuthModule, BotModule, CrmModule, AppointmentsModule],
+  imports: [SharedModule, AuthModule, BotModule, CrmModule, AppointmentsModule, GiveawaysModule],
   controllers: [AppController],
   providers: [AppService],
 })

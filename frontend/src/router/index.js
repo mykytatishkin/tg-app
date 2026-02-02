@@ -26,6 +26,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/appointments/success',
+    name: 'BookingSuccess',
+    component: () => import('../views/BookingSuccess.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/admin/clients',
     name: 'AdminClients',
     component: () => import('../views/admin/Clients.vue'),
@@ -41,6 +47,12 @@ const routes = [
     path: '/admin/appointments',
     name: 'AdminAppointments',
     component: () => import('../views/admin/Appointments.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
+    path: '/admin/appointments/:id',
+    name: 'AdminAppointmentDetail',
+    component: () => import('../views/admin/AppointmentDetail.vue'),
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {

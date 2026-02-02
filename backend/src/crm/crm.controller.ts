@@ -122,8 +122,14 @@ export class CrmController {
     @Request() req: { user: User },
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('upcomingOnly') upcomingOnly?: string,
   ) {
-    return this.crmService.getAppointments(req.user, from, to);
+    return this.crmService.getAppointments(
+      req.user,
+      from,
+      to,
+      upcomingOnly === 'true' || upcomingOnly === '1',
+    );
   }
 
   @Post('appointments')
