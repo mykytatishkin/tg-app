@@ -224,7 +224,7 @@ watch(selectedMasterId, load);
         ← Назад
       </button>
       <h1 class="text-2xl font-bold">
-        {{ isAdmin && selectedMasterId ? `Доступность — ${selectedMasterName || 'Мастер'}` : 'Доступность' }}
+        {{ isAdmin && selectedMasterId ? `Окошки — ${selectedMasterName || 'Мастер'}` : 'Окошки' }}
       </h1>
     </div>
 

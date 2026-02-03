@@ -26,7 +26,7 @@ const adminNavItems = [
   { path: '/admin/stats', label: 'Статистика', icon: `/icons/stats.png?${iconV}` },
   { path: '/admin/services', label: 'Услуги', icon: `/icons/services.png?${iconV}` },
   { path: '/admin/appointments', label: 'Записи', icon: `/icons/appointments.png?${iconV}` },
-  { path: '/admin/availability', label: 'Доступность', icon: `/icons/availability.png?${iconV}` },
+  { path: '/admin/availability', label: 'Окошки', icon: `/icons/availability.png?${iconV}` },
   { path: '/admin/drinks', label: 'Напитки', icon: `/icons/drinks.png?${iconV}` },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
   { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
