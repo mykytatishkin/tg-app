@@ -184,60 +184,50 @@ watch(selectedMasterId, load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <ul v-else class="space-y-3">
-      <li
-        v-for="a in appointments"
-        :key="a.id"
-        class="p-4 rounded-xl"
-        :class="!a.serviceId ? 'bg-neutral-700/50 border border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)]'"
-      >
+      <li v-for="a in appointments" :key="a.id" class="block">
         <button
           type="button"
-          class="w-full text-left"
+          class="w-full text-left p-4 rounded-xl border transition opacity hover:opacity-90 active:opacity-95 cursor-pointer"
+          :class="!a.serviceId ? 'bg-neutral-700/50 border-neutral-600' : 'bg-[var(--tg-theme-secondary-bg-color)] border-[var(--tg-theme-section-separator-color,#e5e5e5)]'"
           @click="goToDetail(a.id)"
         >
           <div class="font-medium">{{ a.date }} {{ a.startTime ? a.startTime.slice(0, 5) : '' }}</div>
-          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+          <div class="text-sm text-[var(--tg-theme-hint-color,#999)] mt-0.5">
             {{ a.client?.name }} · {{ a.serviceId ? ((a.service?.name ?? '') + (a.service?.price != null ? ' · ' + a.service.price + '+ €' : '')) : 'Для моделей' }}
           </div>
+          <div class="flex items-center gap-2 mt-3 flex-wrap">
+            <span
+              v-if="!a.serviceId"
+              class="text-sm px-2 py-0.5 rounded bg-neutral-600 text-white"
+            >Для моделей</span>
+            <span
+              v-if="a.withDiscount"
+              class="text-sm px-2 py-0.5 rounded bg-neutral-500 text-white"
+            >Со скидкой</span>
+            <span
+              class="text-sm capitalize px-2 py-0.5 rounded"
+              :class="a.status === 'cancelled' ? 'bg-neutral-800 text-neutral-300' : a.status === 'done' ? 'bg-neutral-500 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
+            >{{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>
+            <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">→ детали</span>
+          </div>
         </button>
-        <div class="flex items-center gap-2 mt-2 flex-wrap">
-          <span
-            v-if="!a.serviceId"
-            class="text-sm px-2 py-0.5 rounded bg-neutral-600 text-white"
-          >Для моделей</span>
-          <span
-            v-if="a.withDiscount"
-            class="text-sm px-2 py-0.5 rounded bg-neutral-500 text-white"
-          >Со скидкой</span>
-          <span
-            class="text-sm capitalize px-2 py-0.5 rounded"
-            :class="a.status === 'cancelled' ? 'bg-neutral-800 text-neutral-300' : a.status === 'done' ? 'bg-neutral-500 text-white' : 'bg-[var(--tg-theme-section-bg-color)]'"
-          >{{ a.status === 'scheduled' ? 'запланировано' : a.status === 'done' ? 'завершено' : 'отменено' }}</span>
+        <div v-if="a.status === 'scheduled'" class="flex items-center gap-2 mt-2 pl-1">
           <button
             type="button"
-            class="text-sm px-2 py-1 rounded bg-[var(--tg-theme-hint-color,#999)] text-white"
-            @click="goToDetail(a.id)"
+            class="text-sm px-3 py-1.5 rounded-lg bg-[var(--tg-theme-section-bg-color)] disabled:opacity-50"
+            :disabled="updatingId === a.id"
+            @click="setStatus(a.id, 'done')"
           >
-            Подробнее
+            Завершено
           </button>
-          <template v-if="a.status === 'scheduled'">
-            <button
-              type="button"
-              class="text-sm px-2 py-1 rounded bg-neutral-500 text-white disabled:opacity-50"
-              :disabled="updatingId === a.id"
-              @click.stop="setStatus(a.id, 'done')"
-            >
-              Завершено
-            </button>
-            <button
-              type="button"
-              class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
-              :disabled="updatingId === a.id"
-              @click.stop="openCancelModal(a.id)"
-            >
-              Отменить
-            </button>
-          </template>
+          <button
+            type="button"
+            class="text-sm px-3 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] disabled:opacity-50"
+            :disabled="updatingId === a.id"
+            @click="openCancelModal(a.id)"
+          >
+            Отменить
+          </button>
         </div>
       </li>
     </ul>

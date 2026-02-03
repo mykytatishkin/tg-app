@@ -645,7 +645,31 @@ export class CrmService {
       status: dto.status ?? AppointmentStatus.SCHEDULED,
       source: AppointmentSource.MANUAL,
     });
-    return this.appointmentRepo.save(appointment);
+    const saved = await this.appointmentRepo.save(appointment);
+    await this.notifyMasterOnNewAppointment(saved);
+    return saved;
+  }
+
+  /** Notify master in Telegram when a new appointment is created (e.g. from CRM). */
+  private async notifyMasterOnNewAppointment(appointment: Appointment): Promise<void> {
+    const master = await this.userRepo.findOne({ where: { id: appointment.masterId }, select: ['telegramId'] });
+    const masterTgId = master?.telegramId?.trim();
+    if (!masterTgId) return;
+    const full = await this.appointmentRepo.findOne({
+      where: { id: appointment.id },
+      relations: ['client', 'service'],
+    });
+    if (!full || full.status !== AppointmentStatus.SCHEDULED) return;
+    const dateStr = typeof full.date === 'string' ? full.date : (full.date as Date)?.toISOString?.()?.slice(0, 10);
+    const timeStr = (full.startTime || '').slice(0, 5);
+    const clientName = full.client?.name ?? 'Клиент';
+    const serviceName = full.service?.name ?? '—';
+    const text = `📅 Новая запись: ${dateStr} ${timeStr}, ${this.escapeHtml(serviceName)}. Клиент: ${this.escapeHtml(clientName)}`;
+    await this.botService.sendMessage(masterTgId, text);
+  }
+
+  private escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   async getAppointment(user: User, id: string) {

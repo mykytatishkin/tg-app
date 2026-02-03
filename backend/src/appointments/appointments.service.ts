@@ -382,7 +382,13 @@ export class AppointmentsService {
         referenceImageUrl: dto.referenceImageUrl ?? null,
         reminderEnabled: true,
       });
-      return this.appointmentRepo.save(appointment);
+      const saved = await this.appointmentRepo.save(appointment);
+      const serviceForSlot = slot.serviceId ? await this.serviceRepo.findOne({ where: { id: slot.serviceId } }) : null;
+      await this.notifyMasterOnNewBooking(masterId, client, saved, serviceForSlot?.name ?? null);
+      if (serviceForSlot) {
+        await this.maybeNotifyMasterDayFull(masterId, dto.date, serviceForSlot.id);
+      }
+      return saved;
     }
 
     const service = await this.serviceRepo.findOne({
@@ -403,7 +409,69 @@ export class AppointmentsService {
       referenceImageUrl: dto.referenceImageUrl ?? null,
       reminderEnabled: true,
     });
-    return this.appointmentRepo.save(appointment);
+    const saved = await this.appointmentRepo.save(appointment);
+    await this.notifyMasterOnNewBooking(masterId, client, saved, service.name);
+    await this.maybeNotifyMasterDayFull(masterId, dto.date, service.id);
+    return saved;
+  }
+
+  /** Notify master in Telegram about a new booking (client self-service). */
+  private async notifyMasterOnNewBooking(
+    masterId: string,
+    client: Client,
+    appointment: Appointment,
+    serviceName: string | null,
+  ): Promise<void> {
+    const master = await this.userRepo.findOne({ where: { id: masterId }, select: ['telegramId'] });
+    const masterTgId = master?.telegramId?.trim();
+    if (!masterTgId) {
+      console.warn(
+        `[notifyMasterOnNewBooking] Master ${masterId} has no telegramId in users table — notification skipped. Master must open the bot/mini-app once so their Telegram ID is saved.`,
+      );
+      return;
+    }
+    const dateStr = typeof appointment.date === 'string' ? appointment.date : (appointment.date as Date)?.toISOString?.()?.slice(0, 10);
+    const timeStr = (appointment.startTime || '').slice(0, 5);
+    const clientName = client.name ?? 'Клиент';
+    const clientUsername = client.username?.trim();
+    const mention = clientUsername ? `@${clientUsername}` : this.escapeHtml(clientName);
+    const servicePart = serviceName ? `, ${this.escapeHtml(serviceName)}` : '';
+    const text = `📅 Новая запись: ${dateStr} ${timeStr}${servicePart}. Клиент: ${mention}`;
+    const sent = await this.botService.sendMessage(masterTgId, text);
+    if (!sent) {
+      console.warn(`[notifyMasterOnNewBooking] Failed to send Telegram message to master chat_id=${masterTgId}. Check logs above for Bot sendMessage error.`);
+    }
+  }
+
+  /** If there are no free slots left for this service on this date, send master a summary of all appointments that day. */
+  private async maybeNotifyMasterDayFull(masterId: string, date: string, serviceId: string): Promise<void> {
+    const freeSlots = await this.getAvailableSlotsForDate(date, serviceId, masterId);
+    if (freeSlots.length > 0) return;
+    const master = await this.userRepo.findOne({ where: { id: masterId }, select: ['telegramId'] });
+    const masterTgId = master?.telegramId?.trim();
+    if (!masterTgId) return;
+    const appointments = await this.appointmentRepo.find({
+      where: { masterId, date, status: AppointmentStatus.SCHEDULED },
+      relations: ['client', 'service'],
+      order: { startTime: 'ASC' },
+    });
+    if (appointments.length === 0) return;
+    const dateStr = date.slice(0, 10);
+    const lines = appointments.map((a) => {
+      const timeStr = (a.startTime || '').slice(0, 5);
+      const clientName = a.client?.name ?? 'Клиент';
+      const serviceName = a.service?.name ?? '—';
+      return `• ${timeStr} — ${this.escapeHtml(clientName)}, ${this.escapeHtml(serviceName)}`;
+    });
+    const text = `📋 На ${dateStr} свободных слотов не осталось. Записи на этот день:\n\n${lines.join('\n')}`;
+    await this.botService.sendMessage(masterTgId, text);
+  }
+
+  private escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   async setReminder(user: User, appointmentId: string, enable: boolean) {
