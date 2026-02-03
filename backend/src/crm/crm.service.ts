@@ -421,7 +421,59 @@ export class CrmService {
       .addOrderBy('slot.startTime', 'ASC');
     if (from) qb.andWhere('slot.date >= :from', { from });
     if (to) qb.andWhere('slot.date <= :to', { to });
-    return qb.getMany();
+    const slots = await qb.getMany();
+
+    const fromDate = from ?? slots[0]?.date;
+    const toDate = to ?? slots[slots.length - 1]?.date;
+    if (slots.length === 0 || !fromDate || !toDate) {
+      return slots.map((s) => ({ ...s, isBooked: false }));
+    }
+
+    const appointments = await this.appointmentRepo.find({
+      where: {
+        masterId: In(masterIds),
+        status: AppointmentStatus.SCHEDULED,
+      },
+      relations: ['service'],
+    }).then((list) =>
+      list.filter((a) => {
+        const d = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
+        return d >= fromDate && d <= toDate;
+      }),
+    );
+
+    const bookedSlotIds = new Set(
+      appointments.filter((a) => a.slotId != null).map((a) => a.slotId as string),
+    );
+
+    const toMinutes = (t: string) => {
+      const parts = String(t ?? '').trim().split(':').map(Number);
+      return (parts[0] ?? 0) * 60 + (parts[1] ?? 0);
+    };
+
+    return slots.map((slot) => {
+      const slotDate = typeof slot.date === 'string' ? slot.date : (slot.date as Date).toISOString().slice(0, 10);
+      if (slotDate < fromDate || slotDate > toDate) {
+        return { ...slot, isBooked: false };
+      }
+      let isBooked = false;
+      if (slot.forModels) {
+        isBooked = bookedSlotIds.has(slot.id);
+      } else {
+        const slotStart = toMinutes(slot.startTime);
+        const slotEnd = toMinutes(slot.endTime);
+        isBooked = appointments.some((a) => {
+          if (a.masterId !== slot.masterId) return false;
+          const aDate = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
+          if (aDate !== slotDate) return false;
+          const duration = a.service?.durationMinutes ?? 60;
+          const aStart = toMinutes(a.startTime);
+          const aEnd = aStart + duration;
+          return this.timeRangesOverlap(slotStart, slotEnd, aStart, aEnd);
+        });
+      }
+      return { ...slot, isBooked };
+    });
   }
 
   /** Преобразует время "HH:MM" или "HH:MM:SS" в минуты от полуночи. */

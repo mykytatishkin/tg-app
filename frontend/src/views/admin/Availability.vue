@@ -355,7 +355,8 @@ watch(selectedMasterId, load);
       <li
         v-for="s in slots"
         :key="s.id"
-        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] flex flex-col gap-3"
+        class="p-4 rounded-xl flex flex-col gap-3 transition-opacity"
+        :class="['bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]', { 'opacity-50': s.isBooked }]"
       >
         <div>
           <div class="font-medium">{{ s.date }}</div>
@@ -365,6 +366,7 @@ watch(selectedMasterId, load);
             <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
             </span>
+            <span v-if="s.isBooked" class="font-medium text-[var(--tg-theme-hint-color,#999)]"> — Занят</span>
             <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
           </div>
           <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
