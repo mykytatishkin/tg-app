@@ -219,6 +219,18 @@ export class AppointmentsService {
     return freeSlots;
   }
 
+  /** Normalize date to YYYY-MM-DD for reliable range comparison (DB may return Date or ISO string). */
+  private toDateOnly(value: string | Date): string {
+    if (value instanceof Date) {
+      const y = value.getFullYear();
+      const m = String(value.getMonth() + 1).padStart(2, '0');
+      const d = String(value.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    const s = String(value);
+    return s.slice(0, 10);
+  }
+
   /** Returns "for models" slots in range: one booking per slot, service fixed by master. */
   async getAvailableModelSlotsInRange(
     fromDate: string,
@@ -229,6 +241,9 @@ export class AppointmentsService {
     const from = new Date(fromDate);
     const to = new Date(toDate);
     if (from > to) return [];
+
+    const fromNorm = this.toDateOnly(fromDate);
+    const toNorm = this.toDateOnly(toDate);
 
     const slots = await this.slotRepo.find({
       where: { masterId: resolved, isAvailable: true, forModels: true },
@@ -249,13 +264,14 @@ export class AppointmentsService {
 
     const result: { date: string; startTime: string; endTime: string; slotId: string; priceModifier?: number | null; serviceId?: string; serviceName?: string }[] = [];
     for (const slot of slots) {
-      if (slot.date < fromDate || slot.date > toDate) continue;
+      const slotDateNorm = this.toDateOnly(slot.date);
+      if (slotDateNorm < fromNorm || slotDateNorm > toNorm) continue;
       if (bookedSlotIds.has(slot.id)) continue;
       if (!slot.serviceId) continue; // Only show slots with service (master's choice)
       const modifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
       const service = slot.service;
       result.push({
-        date: slot.date,
+        date: slotDateNorm,
         startTime: slot.startTime,
         endTime: slot.endTime,
         slotId: slot.id,

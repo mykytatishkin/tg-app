@@ -120,7 +120,7 @@ export class BackupService {
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     });
-    const res = await fetch('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', {
+    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),

@@ -12,16 +12,20 @@ const { spawn } = require('child_process');
 const CLIENT_ID = process.env.ONEDRIVE_CLIENT_ID;
 const CLIENT_SECRET = process.env.ONEDRIVE_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:3456/callback';
-const SCOPE = 'Files.ReadWrite offline_access';
+const SCOPES = ['Files.ReadWrite.All', 'offline_access'];
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error('❌ Ошибка: ONEDRIVE_CLIENT_ID и ONEDRIVE_CLIENT_SECRET должны быть в backend/.env');
   process.exit(1);
 }
 
-const authUrl = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=${encodeURIComponent(CLIENT_ID)}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPE)}&response_mode=query`;
+// Используем формат scope для Microsoft Identity Platform v2.0
+const scopeParam = SCOPES.map(s => `https://graph.microsoft.com/${s}`).join(' ');
+const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scopeParam)}&response_mode=query`;
 
 console.log('🔐 Получение OneDrive refresh_token\n');
+console.log('🔍 Debug: CLIENT_ID =', CLIENT_ID);
+console.log('🔍 Debug: Auth URL =', authUrl, '\n');
 console.log('1. Сейчас откроется браузер для авторизации');
 console.log('2. Войдите под своим Microsoft-аккаунтом');
 console.log('3. Разрешите доступ к OneDrive');
@@ -65,7 +69,7 @@ const server = http.createServer(async (req, res) => {
       grant_type: 'authorization_code',
     });
 
-    const tokenRes = await fetch('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', {
+    const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),

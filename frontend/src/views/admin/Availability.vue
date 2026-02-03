@@ -32,6 +32,7 @@ const modelServices = ref([]);
 const submitting = ref(false);
 const deletingId = ref(null);
 const lastAdded = ref(null);
+const editingSlotId = ref(null);
 
 async function load() {
   if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
@@ -59,6 +60,7 @@ function selectMaster(m) {
 function openFormWithSameDate() {
   if (!lastAdded.value) return;
   hapticFeedback?.('light');
+  editingSlotId.value = null;
   const nextStart = lastAdded.value.endTime;
   form.value = {
     date: lastAdded.value.date,
@@ -76,6 +78,25 @@ function openFormWithSameDate() {
 function openNewForm() {
   const today = new Date().toISOString().slice(0, 10);
   form.value = { date: today, startTime: '09:00', endTime: getDefaultEndTime('09:00').slice(0, 5), priceModifier: '', forModels: false, serviceId: '' };
+  editingSlotId.value = null;
+  showForm.value = true;
+  lastAdded.value = null;
+  if (form.value.forModels) loadModelServices();
+}
+
+function openEditForm(slot) {
+  hapticFeedback?.('light');
+  const start = (slot.startTime || '').slice(0, 5);
+  const end = (slot.endTime || '').slice(0, 5);
+  form.value = {
+    date: slot.date,
+    startTime: start,
+    endTime: end,
+    priceModifier: slot.priceModifier != null ? String(slot.priceModifier) : '',
+    forModels: !!slot.forModels,
+    serviceId: slot.serviceId || slot.service?.id || '',
+  };
+  editingSlotId.value = slot.id;
   showForm.value = true;
   lastAdded.value = null;
   if (form.value.forModels) loadModelServices();
@@ -95,6 +116,22 @@ async function loadModelServices() {
   }
 }
 
+function buildSlotPayload() {
+  const startTime = form.value.startTime.length === 5 ? form.value.startTime + ':00' : form.value.startTime;
+  const endTime = form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime;
+  const priceModifierRaw = String(form.value.priceModifier ?? '').trim();
+  const priceModifier = priceModifierRaw === '' ? undefined : Number(priceModifierRaw);
+  return {
+    date: form.value.date,
+    startTime,
+    endTime,
+    isAvailable: true,
+    ...(priceModifier != null && !Number.isNaN(priceModifier) ? { priceModifier } : {}),
+    forModels: !!form.value.forModels,
+    ...(form.value.forModels && form.value.serviceId ? { serviceId: form.value.serviceId } : {}),
+  };
+}
+
 async function addSlot() {
   if (!form.value.date || !form.value.startTime || !form.value.endTime) {
     error.value = 'Укажите дату, начало и конец.';
@@ -104,26 +141,41 @@ async function addSlot() {
     error.value = 'Для слота «для моделей» выберите услугу.';
     return;
   }
-  const startTime = form.value.startTime.length === 5 ? form.value.startTime + ':00' : form.value.startTime;
-  const endTime = form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime;
   submitting.value = true;
   error.value = null;
-  const priceModifierRaw = String(form.value.priceModifier ?? '').trim();
-  const priceModifier = priceModifierRaw === '' ? undefined : Number(priceModifierRaw);
   try {
-    await api.post('/crm/availability', {
-      date: form.value.date,
-      startTime,
-      endTime,
-      isAvailable: true,
-      ...(priceModifier != null && !Number.isNaN(priceModifier) ? { priceModifier } : {}),
-      forModels: !!form.value.forModels,
-      ...(form.value.forModels && form.value.serviceId ? { serviceId: form.value.serviceId } : {}),
-    });
+    await api.post('/crm/availability', buildSlotPayload());
     hapticFeedback?.('light');
-    lastAdded.value = { date: form.value.date, endTime };
+    lastAdded.value = { date: form.value.date, endTime: form.value.endTime.length === 5 ? form.value.endTime + ':00' : form.value.endTime };
     showForm.value = false;
     form.value = { date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false, serviceId: '' };
+    editingSlotId.value = null;
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function saveSlot() {
+  if (!editingSlotId.value) return;
+  if (!form.value.date || !form.value.startTime || !form.value.endTime) {
+    error.value = 'Укажите дату, начало и конец.';
+    return;
+  }
+  if (form.value.forModels && !form.value.serviceId) {
+    error.value = 'Для слота «для моделей» выберите услугу.';
+    return;
+  }
+  submitting.value = true;
+  error.value = null;
+  try {
+    await api.put(`/crm/availability/${editingSlotId.value}`, buildSlotPayload());
+    hapticFeedback?.('light');
+    showForm.value = false;
+    form.value = { date: '', startTime: '09:00', endTime: '11:00', priceModifier: '', forModels: false, serviceId: '' };
+    editingSlotId.value = null;
     await load();
   } catch (e) {
     error.value = e.message;
@@ -215,7 +267,8 @@ watch(selectedMasterId, load);
     </div>
 
     <div v-else class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
-      <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">Интервал по умолчанию: {{ DEFAULT_DURATION_HOURS }} ч</p>
+      <p v-if="!editingSlotId" class="text-sm text-[var(--tg-theme-hint-color,#999)]">Интервал по умолчанию: {{ DEFAULT_DURATION_HOURS }} ч</p>
+      <p v-else class="text-sm font-medium text-[var(--tg-theme-text-color,#000)]">Редактировать слот</p>
       <input
         v-model="form.date"
         type="date"
@@ -269,6 +322,16 @@ watch(selectedMasterId, load);
       </div>
       <div class="flex gap-2">
         <button
+          v-if="editingSlotId"
+          type="button"
+          class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
+          :disabled="submitting || (form.forModels && !form.serviceId)"
+          @click="saveSlot"
+        >
+          {{ submitting ? 'Сохраняю…' : 'Сохранить' }}
+        </button>
+        <button
+          v-else
           type="button"
           class="flex-1 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
           :disabled="submitting || (form.forModels && !form.serviceId)"
@@ -279,7 +342,7 @@ watch(selectedMasterId, load);
         <button
           type="button"
           class="py-2 px-4 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)]"
-          @click="showForm = false"
+          @click="showForm = false; editingSlotId = null"
         >
           Отмена
         </button>
@@ -292,7 +355,7 @@ watch(selectedMasterId, load);
       <li
         v-for="s in slots"
         :key="s.id"
-        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] flex items-center justify-between"
+        class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] flex flex-col gap-3"
       >
         <div>
           <div class="font-medium">{{ s.date }}</div>
@@ -308,14 +371,23 @@ watch(selectedMasterId, load);
             Процедура: {{ s.service.name }}
           </div>
         </div>
-        <button
-          type="button"
-          class="text-sm px-2 py-1 rounded bg-neutral-800 text-neutral-300 disabled:opacity-50"
-          :disabled="deletingId === s.id"
-          @click="removeSlot(s.id)"
-        >
-          Удалить
-        </button>
+        <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+          <button
+            type="button"
+            class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+            @click="openEditForm(s)"
+          >
+            Редактировать
+          </button>
+          <button
+            type="button"
+            class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
+            :disabled="deletingId === s.id"
+            @click="removeSlot(s.id)"
+          >
+            Удалить
+          </button>
+        </div>
       </li>
     </ul>
     </template>
