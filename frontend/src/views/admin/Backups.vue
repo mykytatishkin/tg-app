@@ -72,7 +72,10 @@ async function runRestore() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.message || `Ошибка: ${res.status}`);
+      const message = res.status === 413
+        ? 'Файл слишком большой (макс. 50 МБ)'
+        : (data.message || `Ошибка: ${res.status}`);
+      throw new Error(message);
     }
     restoreResult.value = data.message || 'База восстановлена';
     selectedFile.value = null;

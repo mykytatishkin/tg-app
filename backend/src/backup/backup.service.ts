@@ -58,17 +58,23 @@ export class BackupService {
           this.dbName,
         ], { stdio: ['ignore', 'pipe', 'pipe'] });
         const chunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
         proc.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk));
-        proc.stderr?.on('data', (chunk: Buffer) => chunks.push(chunk));
+        proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
         proc.on('error', (err) => reject(err));
-        proc.on('close', (code) => {
-          if (code !== 0) reject(new Error(`pg_dump exited with code ${code}`));
-          else resolve(Buffer.concat(chunks));
-        });
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           proc.kill('SIGKILL');
           reject(new Error('pg_dump timeout'));
         }, DUMP_TIMEOUT_MS);
+        proc.on('close', (code) => {
+          clearTimeout(timeoutId);
+          if (code !== 0) {
+            const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
+            reject(new Error(stderrText ? `pg_dump exited with code ${code}: ${stderrText}` : `pg_dump exited with code ${code}`));
+          } else {
+            resolve(Buffer.concat(chunks));
+          }
+        });
       } else {
         const env = { ...process.env, PGPASSWORD: this.dbPassword };
         const proc = spawn(
@@ -77,17 +83,23 @@ export class BackupService {
           { env, stdio: ['ignore', 'pipe', 'pipe'] },
         );
         const chunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
         proc.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk));
-        proc.stderr?.on('data', (chunk: Buffer) => chunks.push(chunk));
+        proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
         proc.on('error', (err) => reject(err));
-        proc.on('close', (code) => {
-          if (code !== 0) reject(new Error(`pg_dump exited with code ${code}`));
-          else resolve(Buffer.concat(chunks));
-        });
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           proc.kill('SIGKILL');
           reject(new Error('pg_dump timeout'));
         }, DUMP_TIMEOUT_MS);
+        proc.on('close', (code) => {
+          clearTimeout(timeoutId);
+          if (code !== 0) {
+            const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
+            reject(new Error(stderrText ? `pg_dump exited with code ${code}: ${stderrText}` : `pg_dump exited with code ${code}`));
+          } else {
+            resolve(Buffer.concat(chunks));
+          }
+        });
       }
     });
   }
@@ -248,19 +260,27 @@ export class BackupService {
         const proc = spawn('docker', ['exec', '-i', 'tg-app-postgres', 'psql', '-U', this.dbUser, '-d', this.dbName], {
           stdio: ['pipe', 'pipe', 'pipe'],
         });
+        const stderrChunks: Buffer[] = [];
+        proc.stdout?.on('data', () => {});
+        proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
         proc.stdin?.write(sql, (err) => {
           if (err) reject(err);
           else proc.stdin?.end();
         });
         proc.on('error', reject);
-        proc.on('close', (code) => {
-          if (code !== 0) reject(new Error(`psql exited with code ${code}`));
-          else resolve();
-        });
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           proc.kill('SIGKILL');
           reject(new Error('Restore timeout'));
         }, RESTORE_TIMEOUT_MS);
+        proc.on('close', (code) => {
+          clearTimeout(timeoutId);
+          if (code !== 0) {
+            const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
+            reject(new Error(stderrText ? `psql exited with code ${code}: ${stderrText}` : `psql exited with code ${code}`));
+          } else {
+            resolve();
+          }
+        });
       } else {
         const env = { ...process.env, PGPASSWORD: this.dbPassword };
         const proc = spawn(
@@ -268,15 +288,23 @@ export class BackupService {
           ['-h', this.dbHost, '-p', this.dbPort, '-U', this.dbUser, '-d', this.dbName, '-f', filePath],
           { env },
         );
+        const stderrChunks: Buffer[] = [];
+        proc.stdout?.on('data', () => {});
+        proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
         proc.on('error', reject);
-        proc.on('close', (code) => {
-          if (code !== 0) reject(new Error(`psql exited with code ${code}`));
-          else resolve();
-        });
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           proc.kill('SIGKILL');
           reject(new Error('Restore timeout'));
         }, RESTORE_TIMEOUT_MS);
+        proc.on('close', (code) => {
+          clearTimeout(timeoutId);
+          if (code !== 0) {
+            const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
+            reject(new Error(stderrText ? `psql exited with code ${code}: ${stderrText}` : `psql exited with code ${code}`));
+          } else {
+            resolve();
+          }
+        });
       }
     });
   }
