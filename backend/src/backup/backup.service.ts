@@ -255,6 +255,10 @@ export class BackupService {
 
   async restoreFromFile(filePath: string): Promise<void> {
     const sql = await fs.readFile(filePath, 'utf8');
+    // #region agent log
+    const useDocker = this.useDocker;
+    fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'backup.service.ts:restoreFromFile', message: 'Restore target (where psql writes)', data: { filePath, sqlLength: sql.length, useDocker, dbHost: this.dbHost, dbPort: this.dbPort, dbName: this.dbName }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H1-H5' }) }).catch(() => {});
+    // #endregion
     return new Promise((resolve, reject) => {
       if (this.useDocker) {
         const proc = spawn('docker', ['exec', '-i', 'tg-app-postgres', 'psql', '-U', this.dbUser, '-d', this.dbName], {
@@ -274,10 +278,17 @@ export class BackupService {
         }, RESTORE_TIMEOUT_MS);
         proc.on('close', (code) => {
           clearTimeout(timeoutId);
+          const stderrLen = Buffer.concat(stderrChunks).length;
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'backup.service.ts:restoreClose(docker)', message: 'psql exit', data: { code, stderrLen, branch: 'docker' }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3' }) }).catch(() => {});
+          // #endregion
           if (code !== 0) {
             const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
             reject(new Error(stderrText ? `psql exited with code ${code}: ${stderrText}` : `psql exited with code ${code}`));
           } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'backup.service.ts:restoreResolve(docker)', message: 'Restore reported success', data: { code }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3-H4' }) }).catch(() => {});
+            // #endregion
             resolve();
           }
         });
@@ -298,10 +309,17 @@ export class BackupService {
         }, RESTORE_TIMEOUT_MS);
         proc.on('close', (code) => {
           clearTimeout(timeoutId);
+          const stderrLen = Buffer.concat(stderrChunks).length;
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'backup.service.ts:restoreClose(host)', message: 'psql exit', data: { code, stderrLen, branch: 'host' }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3' }) }).catch(() => {});
+          // #endregion
           if (code !== 0) {
             const stderrText = Buffer.concat(stderrChunks).toString('utf8').trim();
             reject(new Error(stderrText ? `psql exited with code ${code}: ${stderrText}` : `psql exited with code ${code}`));
           } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'backup.service.ts:restoreResolve(host)', message: 'Restore reported success', data: { code }, timestamp: Date.now(), sessionId: 'debug-session', hypothesisId: 'H3-H4' }) }).catch(() => {});
+            // #endregion
             resolve();
           }
         });
