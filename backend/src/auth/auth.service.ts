@@ -59,14 +59,14 @@ export class AuthService {
 
     return {
       accessToken,
-      user: this.sanitizeUser(user),
+      user: this.userWithStage(user),
     };
   }
 
   async getMe(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
-    return this.sanitizeUser(user);
+    return this.userWithStage(user);
   }
 
   async linkInstagram(userId: string, instagramId: string): Promise<User> {
@@ -159,8 +159,16 @@ export class AuthService {
     return { sent, failed, total: chatIds.size };
   }
 
+  private getStage(): string {
+    return process.env.STAGE || 'production';
+  }
+
   private sanitizeUser(user: User) {
     const { ...rest } = user;
     return rest;
+  }
+
+  private userWithStage(user: User) {
+    return { ...this.sanitizeUser(user), stage: this.getStage() };
   }
 }

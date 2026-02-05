@@ -62,6 +62,13 @@ function handleLogout() {
     <template v-else>
       <h1 class="text-2xl font-bold mb-2 flex items-center gap-2">
         Привет, {{ user?.firstName || 'друг' }}!
+        <!-- Показывается всем (админам, мастерам, клиентам) при STAGE=local -->
+        <span
+          v-if="user?.stage === 'local'"
+          class="text-xs font-normal px-2 py-0.5 rounded bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]"
+        >
+          in test
+        </span>
         <span
           v-if="isAdmin"
           class="text-xs font-normal px-2 py-0.5 rounded bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]"
