@@ -9,6 +9,7 @@ import { CrmModule } from './crm/crm.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { GiveawaysModule } from './giveaways/giveaways.module';
 import { BackupModule } from './backup/backup.module';
+import { SuggestionsModule } from './suggestions/suggestions.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { BackupModule } from './backup/backup.module';
     AppointmentsModule,
     GiveawaysModule,
     BackupModule,
+    SuggestionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

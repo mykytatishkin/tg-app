@@ -8,10 +8,12 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/telegram.strategy';
 import { AdminOnlyGuard } from './guards/admin-only.guard';
+import { BotModule } from '../bot/bot.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
+    BotModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -30,6 +30,8 @@ const adminNavItems = [
   { path: '/admin/drinks', label: 'Напитки', icon: `/icons/drinks.png?${iconV}` },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
   { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
+  { path: '/admin/broadcast', label: 'Рассылка', icon: '📢', adminOnly: true },
+  { path: '/admin/suggestions', label: 'Предложения', icon: '📩', adminOnly: true },
 ];
 
 const userNavItems = [
@@ -73,7 +75,7 @@ function handleLogout() {
       <div class="grid gap-3">
         <template v-if="isMasterOrAdmin">
         <RouterLink
-          v-for="item in adminNavItems"
+          v-for="item in adminNavItems.filter((i) => !i.adminOnly || isAdmin)"
           :key="item.path"
           :to="item.path"
           class="flex items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] text-left no-underline text-[var(--tg-theme-text-color)] cursor-pointer active:opacity-90"

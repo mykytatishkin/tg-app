@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Body, UseGuards, Request, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
+import { BroadcastMessageDto } from './dto/broadcast-message.dto';
 import { TelegramInitGuard } from './guards/telegram-init.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AdminOnlyGuard } from './guards/admin-only.guard';
@@ -52,6 +53,16 @@ export class AuthController {
     @Body() body: { drinkOptions?: string[] },
   ) {
     return this.authService.updateUserDrinkOptionsForAdmin(id, body.drinkOptions ?? []);
+  }
+
+  @Post('broadcast')
+  @UseGuards(JwtAuthGuard, AdminOnlyGuard)
+  async broadcast(@Body() dto: BroadcastMessageDto) {
+    const trimmed = dto.message.trim();
+    if (!trimmed) {
+      return { sent: 0, failed: 0, total: 0 };
+    }
+    return this.authService.broadcastMessage(trimmed);
   }
 
   @Post('instagram/link')

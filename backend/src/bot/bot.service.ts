@@ -16,6 +16,8 @@ import {
 } from './quick-test.state';
 import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
+import { Suggestion, SUGGESTION_STATUS_LABELS, type SuggestionStatus } from '../suggestions/entities/suggestion.entity';
+import { User } from '../auth/entities/user.entity';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
@@ -93,6 +95,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private appointmentRepo: Repository<Appointment>,
     @InjectRepository(AppointmentFeedback)
     private feedbackRepo: Repository<AppointmentFeedback>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
+    @InjectRepository(Suggestion)
+    private suggestionRepo: Repository<Suggestion>,
   ) {}
 
   onModuleInit() {
@@ -128,6 +134,27 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
           [Markup.button.url('Инстаграм @murrnails_', 'https://instagram.com/murrnails_')],
         ]),
       );
+    });
+
+    this.bot.command('suggestions', async (ctx) => {
+      const telegramId = String(ctx.from?.id ?? '');
+      if (!telegramId) return ctx.reply('Не удалось определить пользователя.');
+      const user = await this.userRepo.findOne({ where: { telegramId }, select: ['id'] });
+      if (!user) return ctx.reply('Сначала откройте мини-приложение из меню бота — тогда вы сможете отправлять предложения и смотреть их статус.');
+      const suggestions = await this.suggestionRepo.find({
+        where: { userId: user.id },
+        order: { createdAt: 'DESC' },
+      });
+      if (suggestions.length === 0) {
+        return ctx.reply('У вас пока нет предложений. Оставить предложение можно в разделе «Мой профиль» → «Предложение изменений» в приложении.');
+      }
+      const lines = suggestions.map((s, i) => {
+        const statusLabel = SUGGESTION_STATUS_LABELS[(s.status ?? 'pending') as SuggestionStatus];
+        const textShort = s.text.length > 80 ? s.text.slice(0, 80) + '…' : s.text;
+        return `${i + 1}. [${s.category}] ${statusLabel}\n${escapeHtml(textShort)}`;
+      });
+      const message = '📩 <b>Ваши предложения</b>\n\n' + lines.join('\n\n');
+      return ctx.reply(message, { parse_mode: 'HTML' });
     });
 
     // ——— Обработчики отзыва после сеанса ———

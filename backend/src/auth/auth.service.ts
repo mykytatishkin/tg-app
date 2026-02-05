@@ -4,10 +4,17 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { TelegramUser } from './guards/telegram-init.guard';
+import { BotService } from '../bot/bot.service';
 
 export interface AuthResult {
   accessToken: string;
   user: Omit<User, never>;
+}
+
+export interface BroadcastResult {
+  sent: number;
+  failed: number;
+  total: number;
 }
 
 @Injectable()
@@ -16,6 +23,7 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
+    private botService: BotService,
   ) {}
 
   async loginWithTelegram(telegramUser: TelegramUser): Promise<AuthResult> {
@@ -104,6 +112,26 @@ export class AuthService {
     user.drinkOptions = drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
     const saved = await this.userRepository.save(user);
     return { id: saved.id, drinkOptions: saved.drinkOptions };
+  }
+
+  /** Admin only: send message to all users (unique telegramId). Returns { sent, failed, total }. */
+  async broadcastMessage(message: string): Promise<BroadcastResult> {
+    const users = await this.userRepository.find({
+      select: ['telegramId'],
+    });
+    const chatIds = new Set<string>();
+    for (const u of users) {
+      const id = u.telegramId?.trim();
+      if (id) chatIds.add(id);
+    }
+    let sent = 0;
+    let failed = 0;
+    for (const chatId of chatIds) {
+      const ok = await this.botService.sendMessage(chatId, message);
+      if (ok) sent++;
+      else failed++;
+    }
+    return { sent, failed, total: chatIds.size };
   }
 
   private sanitizeUser(user: User) {

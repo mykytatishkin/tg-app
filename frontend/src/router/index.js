@@ -86,10 +86,28 @@ const routes = [
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {
+    path: '/admin/broadcast',
+    name: 'AdminBroadcast',
+    component: () => import('../views/admin/Broadcast.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('../views/Profile.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/suggestions/new',
+    name: 'SuggestionsNew',
+    component: () => import('../views/SuggestionsNew.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/suggestions',
+    name: 'AdminSuggestions',
+    component: () => import('../views/admin/Suggestions.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
   },
   {
     path: '/promo',
