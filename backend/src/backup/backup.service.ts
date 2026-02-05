@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as nodemailer from 'nodemailer';
 import { Cron } from '@nestjs/schedule';
 
 const BACKUP_RETENTION_DAYS = 7;
@@ -11,9 +12,9 @@ const RESTORE_TIMEOUT_MS = 300_000;
 
 @Injectable()
 export class BackupService {
-  private get destination(): 'local' | 'onedrive' | null {
+  private get destination(): 'local' | 'onedrive' | 'email' | null {
     const v = process.env.BACKUP_DESTINATION;
-    if (v === 'local' || v === 'onedrive') return v;
+    if (v === 'local' || v === 'onedrive' || v === 'email') return v;
     return null;
   }
 
@@ -132,7 +133,7 @@ export class BackupService {
       refresh_token: refreshToken,
       grant_type: 'refresh_token',
     });
-    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    const res = await fetch('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
@@ -161,6 +162,31 @@ export class BackupService {
       const text = await res.text();
       throw new BadRequestException(`OneDrive upload failed: ${text}`);
     }
+  }
+
+  private async saveToEmail(buffer: Buffer, filename: string): Promise<void> {
+    const to = process.env.BACKUP_EMAIL_TO?.trim();
+    const host = process.env.SMTP_HOST?.trim();
+    const port = process.env.SMTP_PORT?.trim();
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS ?? '';
+    if (!to || !host || !port) {
+      throw new BadRequestException('Email backup not configured: set BACKUP_EMAIL_TO, SMTP_HOST, SMTP_PORT');
+    }
+    const secure = process.env.SMTP_SECURE !== 'false';
+    const transporter = nodemailer.createTransport({
+      host,
+      port: parseInt(port, 10),
+      secure,
+      auth: user && pass ? { user, pass } : undefined,
+    });
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM?.trim() || user || 'backup@tg-app',
+      to,
+      subject: `Backup tg-app: ${filename}`,
+      text: `Database backup attached: ${filename}`,
+      attachments: [{ filename, content: buffer }],
+    });
   }
 
   private parseDateFromFilename(name: string): Date | null {
@@ -225,6 +251,8 @@ export class BackupService {
     } else if (this.destination === 'onedrive') {
       await this.saveToOneDrive(buffer, filename);
       await this.deleteOldOneDrive();
+    } else if (this.destination === 'email') {
+      await this.saveToEmail(buffer, filename);
     }
   }
 
@@ -249,6 +277,8 @@ export class BackupService {
     } else if (this.destination === 'onedrive') {
       await this.saveToOneDrive(buffer, filename);
       await this.deleteOldOneDrive();
+    } else if (this.destination === 'email') {
+      await this.saveToEmail(buffer, filename);
     }
     return { filename, size: buffer.length };
   }
@@ -335,6 +365,13 @@ export class BackupService {
         process.env.ONEDRIVE_CLIENT_ID &&
         process.env.ONEDRIVE_CLIENT_SECRET &&
         process.env.ONEDRIVE_REFRESH_TOKEN
+      );
+    }
+    if (this.destination === 'email') {
+      return !!(
+        process.env.BACKUP_EMAIL_TO?.trim() &&
+        process.env.SMTP_HOST?.trim() &&
+        process.env.SMTP_PORT?.trim()
       );
     }
     return false;

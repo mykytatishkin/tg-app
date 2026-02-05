@@ -21,7 +21,7 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 
 // Используем формат scope для Microsoft Identity Platform v2.0
 const scopeParam = SCOPES.map(s => `https://graph.microsoft.com/${s}`).join(' ');
-const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scopeParam)}&response_mode=query`;
+const authUrl = `https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scopeParam)}&response_mode=query`;
 
 console.log('🔐 Получение OneDrive refresh_token\n');
 console.log('🔍 Debug: CLIENT_ID =', CLIENT_ID);
@@ -69,7 +69,7 @@ const server = http.createServer(async (req, res) => {
       grant_type: 'authorization_code',
     });
 
-    const tokenRes = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    const tokenRes = await fetch('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
