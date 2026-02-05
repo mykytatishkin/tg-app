@@ -10,6 +10,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { GiveawaysModule } from './giveaways/giveaways.module';
 import { BackupModule } from './backup/backup.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
+import { CustomTimeRequestsModule } from './custom-time-requests/custom-time-requests.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SuggestionsModule } from './suggestions/suggestions.module';
     GiveawaysModule,
     BackupModule,
     SuggestionsModule,
+    CustomTimeRequestsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -8,6 +8,8 @@ const router = useRouter();
 const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
 
+/** '' = не выбрано, 'slot' = услуга, 'models' = для моделей, 'customTime' = своё время за доплату */
+const bookingMode = ref('');
 const forModelsMode = ref(false);
 const masters = ref([]);
 const selectedMasterId = ref('');
@@ -15,15 +17,23 @@ const services = ref([]);
 const selectedServiceId = ref('');
 const slots = ref([]);
 const selectedSlot = ref(null);
-/** false = Дизайн от мастера, true = Дизайн по референсу */
-const designByReference = ref(false);
+/** null = не выбрано, false = от мастера, true = по референсу */
+const designByReference = ref(null);
 const note = ref('');
 const referenceImageUrl = ref('');
 const loadingMasters = ref(true);
 const loadingServices = ref(false);
 const loadingSlots = ref(false);
+/** Master id for which services were last loaded — avoid reload when switching Услуга ↔ Своё время */
+const servicesLoadedForMasterId = ref('');
 const submitting = ref(false);
 const error = ref(null);
+
+/** Custom time request (when bookingMode === 'customTime') */
+const customTimeRequestedDate = ref('');
+const customTimeRequestedTime = ref('10:00');
+const customTimeNote = ref('');
+const customTimeSuccess = ref(false);
 
 const DAYS_AHEAD = 60;
 
@@ -83,6 +93,10 @@ async function loadMasters() {
 async function loadServices() {
   if (!selectedMasterId.value) {
     services.value = [];
+    servicesLoadedForMasterId.value = '';
+    return;
+  }
+  if (servicesLoadedForMasterId.value === selectedMasterId.value && services.value.length > 0) {
     return;
   }
   loadingServices.value = true;
@@ -95,6 +109,7 @@ async function loadServices() {
     services.value = await api.get(
       `/appointments/services?masterId=${encodeURIComponent(selectedMasterId.value)}`
     );
+    servicesLoadedForMasterId.value = selectedMasterId.value;
     if (services.value.length) selectedServiceId.value = services.value[0].id;
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadServices',message:'after load services',data:{servicesCount:services.value.length,selectedServiceIdAfter:selectedServiceId.value||null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
@@ -147,6 +162,7 @@ async function loadSlots() {
 }
 
 function onMasterChange() {
+  if (bookingMode.value === '') return;
   if (forModelsMode.value) {
     loadSlots();
   } else {
@@ -155,7 +171,7 @@ function onMasterChange() {
 }
 
 function onServiceChange() {
-  loadSlots();
+  if (bookingMode.value !== 'customTime') loadSlots();
 }
 
 function selectSlot(slot) {
@@ -201,13 +217,50 @@ function goBack() {
 }
 
 function onBookingModeChange() {
-  selectedServiceId.value = '';
   selectedSlot.value = null;
   slots.value = [];
-  if (forModelsMode.value) {
+  customTimeSuccess.value = false;
+  if (bookingMode.value === 'models') {
+    selectedServiceId.value = '';
     if (selectedMasterId.value) loadSlots();
-  } else {
+  } else if (bookingMode.value === 'slot' || bookingMode.value === 'customTime') {
+    if (bookingMode.value === 'slot') designByReference.value = null;
     if (selectedMasterId.value) loadServices();
+  } else {
+    selectedServiceId.value = '';
+    services.value = [];
+  }
+}
+
+function getCustomTimeMinDate() {
+  return toLocalDateStr(new Date());
+}
+
+async function submitCustomTime() {
+  if (!selectedMasterId.value || !selectedServiceId.value) {
+    error.value = 'Выберите мастера и услугу.';
+    return;
+  }
+  if (!customTimeRequestedDate.value) {
+    error.value = 'Укажите дату.';
+    return;
+  }
+  submitting.value = true;
+  error.value = null;
+  try {
+    await api.post('/custom-time-requests', {
+      masterId: selectedMasterId.value,
+      serviceId: selectedServiceId.value,
+      requestedDate: customTimeRequestedDate.value,
+      requestedStartTime: customTimeRequestedTime.value || undefined,
+      note: customTimeNote.value?.trim() || undefined,
+    });
+    hapticFeedback?.('success');
+    customTimeSuccess.value = true;
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    submitting.value = false;
   }
 }
 
@@ -218,7 +271,8 @@ onMounted(async () => {
   await loadMasters();
   if (preselectedMasterId.value && masters.value.some((m) => m.id === preselectedMasterId.value)) {
     selectedMasterId.value = preselectedMasterId.value;
-  } else if (selectedMasterId.value && !forModelsMode.value) {
+  }
+  if (selectedMasterId.value && (bookingMode.value === 'slot' || bookingMode.value === 'customTime')) {
     await loadServices();
   }
 });
@@ -228,7 +282,7 @@ watch(selectedMasterId, () => {
 });
 
 watch(selectedServiceId, () => {
-  if (selectedMasterId.value && !forModelsMode.value) loadSlots();
+  if (selectedMasterId.value && bookingMode.value === 'slot') loadSlots();
 });
 
 watch(slots, (newSlots) => {
@@ -263,22 +317,31 @@ watch(slots, (newSlots) => {
       <div class="space-y-4 mb-6">
         <div class="space-y-2">
           <span class="block text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Тип записи</span>
-          <div class="flex rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5">
+          <p v-if="!bookingMode" class="text-sm font-bold text-white">Выберите тип записи</p>
+          <div class="flex flex-col sm:flex-row rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5 gap-0.5 sm:gap-0">
             <button
               type="button"
-              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="!forModelsMode ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
-              @click="forModelsMode = false; onBookingModeChange()"
+              class="flex-1 py-2.5 px-2 text-sm font-medium rounded-lg transition-colors"
+              :class="bookingMode === 'slot' ? '!bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]' : 'bg-[var(--tg-theme-button-color,#1a1a1a)]/90 text-[var(--tg-theme-button-text-color,#e8e8e8)]'"
+              @click="bookingMode = 'slot'; forModelsMode = false; onBookingModeChange()"
             >
               Услуга
             </button>
             <button
               type="button"
-              class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="forModelsMode ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
-              @click="forModelsMode = true; onBookingModeChange()"
+              class="flex-1 py-2.5 px-2 text-sm font-medium rounded-lg transition-colors"
+              :class="bookingMode === 'models' ? '!bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]' : 'bg-[var(--tg-theme-button-color,#1a1a1a)]/90 text-[var(--tg-theme-button-text-color,#e8e8e8)]'"
+              @click="bookingMode = 'models'; forModelsMode = true; onBookingModeChange()"
             >
               Для моделей
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-2.5 px-2 text-sm font-medium rounded-lg transition-colors"
+              :class="bookingMode === 'customTime' ? '!bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]' : 'bg-[var(--tg-theme-button-color,#1a1a1a)]/90 text-[var(--tg-theme-button-text-color,#e8e8e8)]'"
+              @click="bookingMode = 'customTime'; forModelsMode = false; onBookingModeChange()"
+            >
+              Своё время
             </button>
           </div>
         </div>
@@ -297,7 +360,7 @@ watch(slots, (newSlots) => {
           </select>
         </div>
 
-        <div v-if="selectedMasterId && !forModelsMode">
+        <div v-if="(bookingMode === 'slot' || bookingMode === 'customTime') && selectedMasterId">
           <label for="book-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга</label>
           <div v-if="loadingServices" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка услуг…</div>
           <select
@@ -314,6 +377,41 @@ watch(slots, (newSlots) => {
           </select>
         </div>
 
+        <!-- Custom time request: date, time, note, fee rule -->
+        <template v-if="bookingMode === 'customTime' && selectedMasterId && selectedServiceId">
+          <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+            Доплата: сегодня +15 €, завтра +10 €, позже от +5 €.
+          </p>
+          <div v-if="!customTimeSuccess">
+            <label for="custom-date" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Дата</label>
+            <input
+              id="custom-date"
+              v-model="customTimeRequestedDate"
+              type="date"
+              :min="getCustomTimeMinDate()"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+            >
+            <label for="custom-time" class="block text-sm font-medium mb-1 mt-2 text-[var(--tg-theme-hint-color,#999)]">Время</label>
+            <input
+              id="custom-time"
+              v-model="customTimeRequestedTime"
+              type="time"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+            >
+            <label for="custom-note" class="block text-sm font-medium mb-1 mt-2 text-[var(--tg-theme-hint-color,#999)]">Комментарий (необязательно)</label>
+            <textarea
+              id="custom-note"
+              v-model="customTimeNote"
+              rows="2"
+              class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+              placeholder="Пожелания к времени или услуге"
+            />
+          </div>
+          <p v-else class="text-[var(--tg-theme-text-color,#e8e8e8)] font-medium">
+            Запрос отправлен. Мастер подтвердит время и доплату; мы пришлём уведомление.
+          </p>
+        </template>
+
         <div v-if="forModelsMode && selectedMasterId" class="mb-2">
           <p v-if="!selectedSlot" class="text-sm text-[var(--tg-theme-hint-color,#999)]">
             Выберите время — услуга указана мастером в слоте.
@@ -322,13 +420,13 @@ watch(slots, (newSlots) => {
             Услуга: {{ selectedSlot.serviceName }}
           </p>
         </div>
-        <div v-if="!forModelsMode && selectedServiceId" class="space-y-1">
-          <label class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">
+        <div v-if="!forModelsMode && selectedServiceId && bookingMode !== 'customTime'" class="space-y-1">
+          <span class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">
             Свободное время
-          </label>
+          </span>
         </div>
-        <div v-if="(forModelsMode ? selectedMasterId : selectedServiceId)">
-          <label v-if="forModelsMode" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время (для моделей)</label>
+        <div v-if="bookingMode !== 'customTime' && (forModelsMode ? selectedMasterId : selectedServiceId)">
+          <span v-if="forModelsMode" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Свободное время (для моделей)</span>
           <div v-if="loadingSlots" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка слотов…</div>
           <div v-else-if="slots.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
             Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте позже.
@@ -354,13 +452,14 @@ watch(slots, (newSlots) => {
           </ul>
         </div>
 
-        <div v-if="!forModelsMode" class="space-y-2">
+        <div v-if="bookingMode === 'slot'" class="space-y-2">
           <span class="block text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Дизайн</span>
+          <p v-if="designByReference === null" class="text-sm font-bold text-white">Выберите вариант</p>
           <div class="flex rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] p-0.5">
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="!designByReference ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
+              :class="designByReference === false ? '!bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]' : 'bg-[var(--tg-theme-button-color,#1a1a1a)]/90 text-[var(--tg-theme-button-text-color,#e8e8e8)]'"
               @click="designByReference = false"
             >
               Дизайн от мастера
@@ -368,7 +467,7 @@ watch(slots, (newSlots) => {
             <button
               type="button"
               class="flex-1 py-2.5 px-3 text-sm font-medium rounded-lg transition-colors"
-              :class="designByReference ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'text-[var(--tg-theme-text-color,#e8e8e8)]'"
+              :class="designByReference === true ? '!bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]' : 'bg-[var(--tg-theme-button-color,#1a1a1a)]/90 text-[var(--tg-theme-button-text-color,#e8e8e8)]'"
               @click="designByReference = true"
             >
               Дизайн по референсу
@@ -401,11 +500,20 @@ watch(slots, (newSlots) => {
       </div>
 
       <button
+        v-if="bookingMode !== 'customTime'"
         class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
-        :disabled="!selectedMasterId || (!forModelsMode && !selectedServiceId) || !selectedSlot || submitting"
+        :disabled="!bookingMode || !selectedMasterId || (!forModelsMode && !selectedServiceId) || !selectedSlot || submitting || (bookingMode === 'slot' && designByReference === null)"
         @click="submit"
       >
         {{ submitting ? 'Записываю…' : 'Записаться' }}
+      </button>
+      <button
+        v-else-if="bookingMode === 'customTime' && !customTimeSuccess"
+        class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
+        :disabled="!selectedMasterId || !selectedServiceId || !customTimeRequestedDate || submitting"
+        @click="submitCustomTime"
+      >
+        {{ submitting ? 'Отправляю…' : 'Отправить запрос' }}
       </button>
     </template>
   </div>

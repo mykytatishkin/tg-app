@@ -110,6 +110,12 @@ const routes = [
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {
+    path: '/admin/custom-time-requests',
+    name: 'AdminCustomTimeRequests',
+    component: () => import('../views/admin/CustomTimeRequests.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
+  {
     path: '/promo',
     name: 'Promo',
     component: () => import('../views/Promo.vue'),
