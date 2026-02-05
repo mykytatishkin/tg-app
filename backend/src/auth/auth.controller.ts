@@ -48,11 +48,15 @@ export class AuthController {
 
   @Patch('users/:id')
   @UseGuards(JwtAuthGuard, AdminOnlyGuard)
-  async updateUserDrinkOptions(
+  async updateUser(
     @Param('id') id: string,
-    @Body() body: { drinkOptions?: string[] },
+    @Body() body: { drinkOptions?: string[]; isAdmin?: boolean; isMaster?: boolean },
   ) {
-    return this.authService.updateUserDrinkOptionsForAdmin(id, body.drinkOptions ?? []);
+    const updates: { drinkOptions?: string[]; isAdmin?: boolean; isMaster?: boolean } = {};
+    if (body.drinkOptions !== undefined) updates.drinkOptions = body.drinkOptions;
+    if (body.isAdmin !== undefined) updates.isAdmin = body.isAdmin;
+    if (body.isMaster !== undefined) updates.isMaster = body.isMaster;
+    return this.authService.updateUserForAdmin(id, updates);
   }
 
   @Post('broadcast')

@@ -105,13 +105,38 @@ export class AuthService {
     return user;
   }
 
-  /** Admin only: update another user's drinkOptions. */
-  async updateUserDrinkOptionsForAdmin(userId: string, drinkOptions: string[]) {
+  /** Admin only: update another user's drinkOptions and/or roles (isAdmin, isMaster). */
+  async updateUserForAdmin(
+    userId: string,
+    updates: { drinkOptions?: string[]; isAdmin?: boolean; isMaster?: boolean },
+  ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
-    user.drinkOptions = drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    if (updates.drinkOptions !== undefined) {
+      user.drinkOptions = updates.drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    }
+    if (updates.isAdmin !== undefined) user.isAdmin = updates.isAdmin;
+    if (updates.isMaster !== undefined) user.isMaster = updates.isMaster;
     const saved = await this.userRepository.save(user);
-    return { id: saved.id, drinkOptions: saved.drinkOptions };
+
+    if ((updates.isAdmin !== undefined || updates.isMaster !== undefined) && saved.telegramId?.trim()) {
+      const parts: string[] = [];
+      if (updates.isAdmin !== undefined) {
+        parts.push(updates.isAdmin ? 'Вам выданы права администратора в приложении.' : 'С вас сняты права администратора.');
+      }
+      if (updates.isMaster !== undefined) {
+        parts.push(updates.isMaster ? 'Вам выданы права мастера.' : 'С вас сняты права мастера.');
+      }
+      const message = parts.join('\n');
+      await this.botService.sendMessage(saved.telegramId.trim(), message);
+    }
+
+    return {
+      id: saved.id,
+      ...(updates.drinkOptions !== undefined && { drinkOptions: saved.drinkOptions }),
+      ...(updates.isAdmin !== undefined && { isAdmin: saved.isAdmin }),
+      ...(updates.isMaster !== undefined && { isMaster: saved.isMaster }),
+    };
   }
 
   /** Admin only: send message to all users (unique telegramId). Returns { sent, failed, total }. */
