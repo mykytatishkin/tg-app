@@ -4,39 +4,33 @@
 
 ## Что нужно
 
-- Сервер с белым IP или VPS с доменом
-- Установленные nginx и (для HTTPS) certbot
+- Сервер с белым (внешним) IP или VPS
+- nginx; для HTTPS с доменом — certbot
 
 ## Шаги
 
-### 1. Собрать фронтенд
+### 1. Запустить фронтенд в dev-режиме
+
+На сервере держите запущенным Vite:
 
 ```bash
 cd frontend
 npm ci
-npm run build
+npm run dev
 ```
 
-Артефакты появятся в `frontend/dist/`.
+Фронт крутится на порту 5173; nginx проксирует на него запросы (сборка `dist` не нужна).
 
 ### 2. Настроить nginx
 
 - Скопируйте `deploy/nginx.conf` в `/etc/nginx/sites-available/tg-app` (или в `conf.d/`).
-- Замените в конфиге:
-  - `your-domain.com` — ваш домен (или `_` для доступа по IP).
-  - `/path/to/tg-app` — полный путь к репозиторию на сервере (чтобы `root` указывал на `.../frontend/dist`).
+- **Только IP:** в конфиге уже стоит `server_name _;` — ничего не меняйте, nginx будет принимать запросы по IP.
+- **С доменом:** замените `_` на ваш домен, например `server_name myapp.com;`.
 
-Пример для доступа по IP без домена:
-
-```nginx
-server_name _;
-root /home/user/tg-app/frontend/dist;
-```
-
-- Включите сайт и перезагрузите nginx:
+Включите сайт и перезагрузите nginx:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/tg-app /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/tg-app /etc/nginx/fastpanel2-available/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -56,31 +50,36 @@ node dist/main.js
 
 ### 4. Указать публичный URL в бэкенде и в боте
 
-В `backend/.env`:
+В `backend/.env` укажите тот URL, по которому пользователи открывают фронт (без слэша в конце):
 
+**Важно:** для кнопок Web App и меню Telegram принимает **только HTTPS**. `http://IP` выдаст ошибку «Only HTTPS links are allowed».
+
+**Вариант A — HTTPS без своего домена (nip.io)**  
+Сервис [nip.io](https://nip.io) даёт «домен», который резолвится в ваш IP: `46.21.250.43.nip.io` → `46.21.250.43`. На сервере:
+
+1. В nginx укажите `server_name 46.21.250.43.nip.io;` (подставьте свой IP).
+2. Получите сертификат:  
+   `sudo certbot --nginx -d 46.21.250.43.nip.io`  
+   (certbot сам добавит `listen 443 ssl` в конфиг.)
+3. В `.env`:  
+   `MINI_APP_URL=https://46.21.250.43.nip.io`
+
+**Вариант B — свой домен и HTTPS:**  
+Настройте A-запись домена на IP сервера, затем:
 ```env
-# Публичный URL, по которому открывается фронт (без слэша в конце)
 MINI_APP_URL=https://your-domain.com
 ```
-
-Если используете IP без HTTPS:
-
-```env
-MINI_APP_URL=http://YOUR_SERVER_IP
-```
-
-**Важно:** Telegram Mini App лучше открывать по HTTPS. Для бесплатного SSL используйте certbot:
+Получите сертификат: `sudo certbot --nginx -d your-domain.com`
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d your-domain.com
+sudo certbot --nginx -d 46.21.250.43.nip.io   # или your-domain.com
 ```
 
-После этого в конфиге nginx добавьте блок `listen 443 ssl` (пример закомментирован в `deploy/nginx.conf`) или сгенерируйте конфиг через certbot.
+Certbot сам добавит SSL в конфиг nginx. Перезапустите бэкенд после смены `MINI_APP_URL`.
 
 ### 5. Ссылка в Telegram
 
-- В [@BotFather](https://t.me/BotFather) в настройках бота: **Bot Settings → Menu Button → Configure menu button** — укажите URL: `https://your-domain.com` (тот же, что в `MINI_APP_URL`).
-- Либо бот уже использует `MINI_APP_URL` из кода для кнопки «Открыть приложение» — тогда достаточно прописать правильный `MINI_APP_URL` в `.env` и перезапустить бэкенд.
+Кнопка «Открыть приложение» и Web App-кнопки в боте берут URL из `MINI_APP_URL` — задайте в `.env` **только HTTPS**-адрес (например `https://46.21.250.43.nip.io`) и перезапустите бэкенд. В BotFather ничего менять не нужно.
 
 После этого фронт доступен по публичной ссылке, nginx раздаёт статику и проксирует `/api` на бэкенд, а в тг-апп передаётся эта ссылка через `MINI_APP_URL` (и кнопка в боте ведёт на неё).
