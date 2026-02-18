@@ -25,7 +25,7 @@ export function useAuth() {
     try {
       const res = await fetch(getApiUrl('/auth/telegram'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
         body: JSON.stringify({ initData: initData.value }),
       });
 
@@ -75,7 +75,7 @@ export function useAuth() {
     if (!token.value) return;
     try {
       const res = await fetch(getApiUrl('/auth/me'), {
-        headers: { Authorization: `Bearer ${token.value}` },
+        headers: { Authorization: `Bearer ${token.value}`, 'ngrok-skip-browser-warning': '1' },
       });
       if (!res.ok) return;
       const data = await res.json();

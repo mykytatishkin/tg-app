@@ -18,7 +18,7 @@ export async function apiRequest(path, options = {}) {
 
   const res = await fetch(url, {
     ...options,
-    headers: { ...headers, ...options.headers },
+    headers: { 'ngrok-skip-browser-warning': '1', ...headers, ...options.headers },
   });
 
   const contentType = res.headers.get('content-type');
