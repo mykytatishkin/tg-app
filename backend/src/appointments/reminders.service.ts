@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { BotService } from '../bot/bot.service';
+import { formatDateTimeForNotification, parseDateTimeInVilnius } from '../shared/timezone.util';
 
 const INTERVAL_MS = 15 * 60 * 1000; // 15 min
 const REMINDER_WINDOW_HOURS = 24;
@@ -43,10 +44,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private toAppointmentDateTime(date: string | Date, startTime: string): Date {
-    const dateStr = typeof date === 'string' ? date : (date as Date).toISOString().slice(0, 10);
-    const timeStr = String(startTime ?? '').trim();
-    const timeNormalized = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-    return new Date(`${dateStr}T${timeNormalized}`);
+    return parseDateTimeInVilnius(date, startTime);
   }
 
   private async sendDueReminders() {
@@ -67,9 +65,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       if (appointmentDateTime <= now) continue;
       if (appointmentDateTime > windowEnd) continue;
 
-      const dateStr = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
-      const timeStr = (a.startTime || '').slice(0, 5);
-      const dateTimeStr = `${dateStr} ${timeStr}`;
+      const dateTimeStr = formatDateTimeForNotification(a.date, a.startTime);
       const serviceName = a.service?.name ?? '';
       const clientName = a.client?.name ?? 'Client';
       const masterName = a.master ? `${a.master.firstName} ${a.master.lastName || ''}`.trim() : 'Master';

@@ -21,6 +21,7 @@ import {
 } from '../crm/entities/custom-time-request.entity';
 import { CreateCustomTimeRequestDto } from '../crm/dto/create-custom-time-request.dto';
 import { BotService } from '../bot/bot.service';
+import { formatDateTimeForNotification, getTodayInVilnius } from '../shared/timezone.util';
 
 const FEE_TODAY = 15;
 const FEE_TOMORROW = 10;
@@ -96,7 +97,7 @@ export class CustomTimeRequestsService {
     if (!service) throw new BadRequestException('Услуга не найдена или недоступна для записи');
 
     const requestedDate = dto.requestedDate.trim();
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getTodayInVilnius();
     if (requestedDate < todayStr) {
       throw new BadRequestException('Дата должна быть сегодня или в будущем');
     }
@@ -165,10 +166,9 @@ export class CustomTimeRequestsService {
     });
     const clientName = requestWithRelations?.client?.name ?? 'Клиентка';
     const serviceName = requestWithRelations?.service?.name ?? 'Услуга';
-    const dateStr = request.requestedDate;
-    const timeStr = (request.requestedStartTime ?? '').slice(0, 5);
+    const dateTimeStr = formatDateTimeForNotification(request.requestedDate, request.requestedStartTime ?? '');
     const fee = Number(request.feeAmount);
-    let text = `🕐 Новый запрос своего времени: ${dateStr} ${timeStr}, ${this.escapeHtml(serviceName)}, ${this.escapeHtml(clientName)}. Доплата +${fee} €.`;
+    let text = `🕐 Новый запрос своего времени: ${dateTimeStr}, ${this.escapeHtml(serviceName)}, ${this.escapeHtml(clientName)}. Доплата +${fee} €.`;
     if (adminPath) {
       await this.botService.sendMessageWithWebAppButton(
         masterTgId,
@@ -321,10 +321,9 @@ export class CustomTimeRequestsService {
       ? [master.firstName, master.lastName].filter(Boolean).join(' ').trim() || 'Мастер'
       : 'Мастер';
     const serviceName = service?.name ?? 'Услуга';
-    const dateStr = request.requestedDate;
-    const timeStr = (request.requestedStartTime ?? '').slice(0, 5);
+    const dateTimeStr = formatDateTimeForNotification(request.requestedDate, request.requestedStartTime ?? '');
     const fee = Number(request.feeAmount);
-    const text = `✅ Ваше время подтверждено: ${dateStr} ${timeStr}, ${this.escapeHtml(masterName)}, ${serviceName}. Доплата +${fee} €.`;
+    const text = `✅ Ваше время подтверждено: ${dateTimeStr}, ${this.escapeHtml(masterName)}, ${serviceName}. Доплата +${fee} €.`;
     await this.botService.sendMessage(telegramId, text);
   }
 

@@ -6,6 +6,7 @@ import { Client } from './entities/client.entity';
 import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { BotService } from '../bot/bot.service';
+import { getTodayInVilnius } from '../shared/timezone.util';
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000; // 14 суток
@@ -16,6 +17,7 @@ const MIN_GAP_BETWEEN_REMINDERS_MS = 23 * 60 * 60 * 1000; // не слать ч�
 
 const WEEKDAY_NAMES_RU = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const MONTH_NAMES_RU = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const VILNIUS_TIMEZONE = 'Europe/Vilnius';
 
 type TimeBucket = 'morning' | 'afternoon' | 'evening';
 function getTimeBucket(startTime: string): TimeBucket {
@@ -26,12 +28,20 @@ function getTimeBucket(startTime: string): TimeBucket {
 }
 
 function formatSlotLabelRu(dateStr: string, startTime: string): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  const weekday = WEEKDAY_NAMES_RU[d.getDay()];
-  const day = d.getDate();
-  const month = MONTH_NAMES_RU[d.getMonth()];
+  // Создаем дату в полдень чтобы избежать проблем с часовым поясом
+  const dateTime = new Date(dateStr + 'T12:00:00Z');
+  
+  // Форматируем дату в часовом поясе Вильнюса
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: VILNIUS_TIMEZONE,
+  });
+  
+  const datePart = formatter.format(dateTime).replace('.', '');
   const time = String(startTime).slice(0, 5);
-  return `${weekday} ${day} ${month}, ${time}`;
+  return `${datePart}, ${time}`;
 }
 
 @Injectable()
@@ -66,7 +76,7 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       select: ['id', 'name', 'telegramId', 'masterId', 'lastReminderSentAt'],
     });
     const now = Date.now();
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getTodayInVilnius();
     const appUrl = this.configService.get<string>('MINI_APP_URL');
     const bookingBaseUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
     const sentToTelegramIdsThisRun = new Set<string>();
@@ -130,7 +140,7 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     const tgId = client.telegramId?.trim();
     if (!tgId) return false;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getTodayInVilnius();
 
     const pastAppointments = await this.appointmentRepo
       .createQueryBuilder('a')

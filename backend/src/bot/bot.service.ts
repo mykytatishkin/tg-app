@@ -18,6 +18,7 @@ import { Appointment, AppointmentStatus } from '../crm/entities/appointment.enti
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { Suggestion, SUGGESTION_STATUS_LABELS, type SuggestionStatus } from '../suggestions/entities/suggestion.entity';
 import { User } from '../auth/entities/user.entity';
+import { parseDateTimeInVilnius } from '../shared/timezone.util';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
@@ -309,7 +310,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       const clientUsername = appointment.client?.username?.trim();
       const mention = clientUsername ? `@${clientUsername}` : clientName;
 
-      const apptDate = new Date(`${appointment.date}T${(appointment.startTime || '').slice(0, 5)}:00`);
+      const apptDate = parseDateTimeInVilnius(appointment.date, appointment.startTime || '00:00');
       const minutesLeft = Math.max(0, Math.round((apptDate.getTime() - Date.now()) / 60000));
       const text = `${mention} будет через ${minutesLeft} мин и желает выпить <b>${escapeHtml(optionText)}</b>.`;
       await this.sendMessage(appointment.master.telegramId, text);

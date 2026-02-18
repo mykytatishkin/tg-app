@@ -38,7 +38,7 @@ isProject: false
 - `BACKUP_DESTINATION` — `local` | `onedrive`
 - `BACKUP_LOCAL_PATH` — путь к папке (для `local`; на Windows: `C:\Users\...\OneDrive\...`)
 - Для `onedrive`: `ONEDRIVE_CLIENT_ID`, `ONEDRIVE_CLIENT_SECRET`, `ONEDRIVE_REFRESH_TOKEN` (получить один раз через OAuth2 flow и положить в .env)
-- Опционально: `BACKUP_TZ=Europe/Kyiv` для времени крона
+- Опционально: `BACKUP_TZ=Europe/Vilnius` для времени крона
 
 **Формат файла:** `pg_dump` в plain SQL (удобно для ручного просмотра и restore). Имя: например `tgapp_YYYY-MM-DD_HH-mm.sql` (для экстренного — с временем).
 
@@ -58,8 +58,8 @@ isProject: false
 
 Все под [JwtAuthGuard](backend/src/auth/guards/jwt-auth.guard.ts) + [MasterOrAdminGuard](backend/src/auth/guards/master-or-admin.guard.ts).
 
-- **POST `/backup/run**` — «Экстренный бекап»: выполнить dump сейчас и сохранить в то же место (local или OneDrive), вернуть имя файла и размер/статус.
-- **POST `/backup/restore**` — multipart: принять файл (`.sql`), сохранить во временный файл, выполнить `psql ... < file` (через docker exec или локальный `psql`), затем удалить временный файл. Ответ — успех/ошибка. Важно: предупреждение в UI, что restore перезаписывает БД.
+- **POST `/backup/run`** — «Экстренный бекап»: выполнить dump сейчас и сохранить в то же место (local или OneDrive), вернуть имя файла и размер/статус.
+- **POST `/backup/restore`** — multipart: принять файл (`.sql`), сохранить во временный файл, выполнить `psql ... < file` (через docker exec или локальный `psql`), затем удалить временный файл. Ответ — успех/ошибка. Важно: предупреждение в UI, что restore перезаписывает БД.
 
 Для multipart в NestJS: `FileInterceptor('file')`, `@UploadedFile()` и лимит размера (например 50 MB). Проверка расширения `.sql` по имени файла.
 

@@ -15,6 +15,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AppointmentsService } from './appointments.service';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { User } from '../auth/entities/user.entity';
+import { getTodayInVilnius, getDateInVilnius } from '../shared/timezone.util';
 
 @Controller('appointments')
 @UseGuards(JwtAuthGuard)
@@ -55,15 +56,8 @@ export class AppointmentsController {
     @Query('from') from: string,
     @Query('to') to: string,
   ) {
-    const fromDate = from || new Date().toISOString().slice(0, 10);
-    let toDate: string;
-    if (to) {
-      toDate = to;
-    } else {
-      const end = new Date();
-      end.setDate(end.getDate() + 60);
-      toDate = end.toISOString().slice(0, 10);
-    }
+    const fromDate = from || getTodayInVilnius();
+    const toDate = to || getDateInVilnius(60); // 60 дней вперед
     return this.appointmentsService.getDiscountSlots(fromDate, toDate);
   }
 
