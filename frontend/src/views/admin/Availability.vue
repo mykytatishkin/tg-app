@@ -37,6 +37,13 @@ function getSlotDateClass(dateStr) {
   return null;
 }
 
+function formatDateHeader(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).slice(0, 10).split('-');
+  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
@@ -54,6 +61,7 @@ const editingSlotId = ref(null);
 
 const hidePastSlots = ref(true);
 const showOnlyUnbooked = ref(false);
+const viewMode = ref('list'); // 'list' | 'grouped'
 
 const filteredSlots = computed(() => {
   let list = slots.value;
@@ -64,6 +72,20 @@ const filteredSlots = computed(() => {
     list = list.filter((s) => getSlotDateClass(s.date) !== 'past' && !s.isBooked);
   }
   return list;
+});
+
+const slotsByDate = computed(() => {
+  const order = [];
+  const byDate = {};
+  for (const s of filteredSlots.value) {
+    const d = typeof s.date === 'string' ? s.date : (s.date?.toISOString?.() ?? '').slice(0, 10);
+    if (!byDate[d]) {
+      byDate[d] = [];
+      order.push(d);
+    }
+    byDate[d].push(s);
+  }
+  return order.map((date) => ({ date, slots: byDate[date] }));
 });
 
 async function load() {
@@ -391,64 +413,144 @@ watch(selectedMasterId, load);
 
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
-    <div v-else class="mb-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-2">
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input v-model="hidePastSlots" type="checkbox" class="rounded">
-        <span class="text-sm">Не показывать прошедшие слоты</span>
-      </label>
-      <label class="flex items-center gap-2 cursor-pointer">
-        <input v-model="showOnlyUnbooked" type="checkbox" class="rounded">
-        <span class="text-sm">Не занятые слоты</span>
-      </label>
+    <div v-else class="mb-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-3">
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity"
+          :class="viewMode === 'list' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="viewMode = 'list'"
+        >
+          Список
+        </button>
+        <button
+          type="button"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity"
+          :class="viewMode === 'grouped' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="viewMode = 'grouped'"
+        >
+          По датам
+        </button>
+      </div>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input v-model="hidePastSlots" type="checkbox" class="rounded">
+          <span class="text-sm">Не показывать прошедшие слоты</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input v-model="showOnlyUnbooked" type="checkbox" class="rounded">
+          <span class="text-sm">Не занятые слоты</span>
+        </label>
+      </div>
     </div>
 
-    <ul v-if="!loading" class="space-y-3">
-      <li
-        v-for="s in filteredSlots"
-        :key="s.id"
-        class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
-        :class="[
-          'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
-          { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
-          getSlotDateClass(s.date) === 'past' && 'border-red-500',
-          getSlotDateClass(s.date) === 'soon' && 'border-green-500',
-          getSlotDateClass(s.date) == null && 'border-transparent'
-        ]"
-        @click="s.isBooked && s.appointmentId && goToAppointment(s)"
-      >
-        <div>
-          <div class="font-medium">{{ s.date }}</div>
-          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ (s.startTime || '').slice(0, 5) }} – {{ (s.endTime || '').slice(0, 5) }}<template v-if="s.isBooked && s.bookedBy"> — {{ s.bookedBy }}</template>
-            <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
-            <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
-              {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
-            </span>
-            <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+    <template v-if="!loading && viewMode === 'list'">
+      <ul class="space-y-3">
+        <li
+          v-for="s in filteredSlots"
+          :key="s.id"
+          class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
+          :class="[
+            'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
+            { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
+            getSlotDateClass(s.date) === 'past' && 'border-red-500',
+            getSlotDateClass(s.date) === 'soon' && 'border-green-500',
+            getSlotDateClass(s.date) == null && 'border-transparent'
+          ]"
+          @click="s.isBooked && s.appointmentId && goToAppointment(s)"
+        >
+          <div>
+            <div class="font-medium">{{ s.date }}</div>
+            <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+              {{ (s.startTime || '').slice(0, 5) }} – {{ (s.endTime || '').slice(0, 5) }}<template v-if="s.isBooked && s.bookedBy"> — {{ s.bookedBy }}</template>
+              <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
+              <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
+                {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
+              </span>
+              <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+            </div>
+            <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
+              Процедура: {{ s.service.name }}
+            </div>
           </div>
-          <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
-            Процедура: {{ s.service.name }}
+          <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+            <button
+              type="button"
+              class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+              @click.stop="openEditForm(s)"
+            >
+              Редактировать
+            </button>
+            <button
+              type="button"
+              class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
+              :disabled="deletingId === s.id"
+              @click.stop="removeSlot(s.id)"
+            >
+              Удалить
+            </button>
           </div>
+        </li>
+      </ul>
+    </template>
+
+    <template v-else-if="!loading && viewMode === 'grouped'">
+      <div class="space-y-6">
+        <div v-for="group in slotsByDate" :key="group.date">
+            <div class="text-center text-sm text-[var(--tg-theme-hint-color,#999)] py-2">
+              ——— {{ formatDateHeader(group.date) }} ———
+            </div>
+            <ul class="space-y-3">
+              <li
+                v-for="s in group.slots"
+                :key="s.id"
+                class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
+                :class="[
+                  'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
+                  { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
+                  getSlotDateClass(s.date) === 'past' && 'border-red-500',
+                  getSlotDateClass(s.date) === 'soon' && 'border-green-500',
+                  getSlotDateClass(s.date) == null && 'border-transparent'
+                ]"
+                @click="s.isBooked && s.appointmentId && goToAppointment(s)"
+              >
+                <div>
+                  <div class="font-medium text-[var(--tg-theme-text-color,#000)]">
+                    {{ (s.startTime || '').slice(0, 5) }}–{{ (s.endTime || '').slice(0, 5) }}<template v-if="s.isBooked && s.bookedBy"> — {{ s.bookedBy }}</template>
+                  </div>
+                  <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+                    <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
+                    <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
+                      {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
+                    </span>
+                    <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+                  </div>
+                  <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
+                    Процедура: {{ s.service.name }}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                  <button
+                    type="button"
+                    class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+                    @click.stop="openEditForm(s)"
+                  >
+                    Редактировать
+                  </button>
+                  <button
+                    type="button"
+                    class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
+                    :disabled="deletingId === s.id"
+                    @click.stop="removeSlot(s.id)"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </li>
+            </ul>
         </div>
-        <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
-          <button
-            type="button"
-            class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
-            @click="openEditForm(s)"
-          >
-            Редактировать
-          </button>
-          <button
-            type="button"
-            class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
-            :disabled="deletingId === s.id"
-            @click="removeSlot(s.id)"
-          >
-            Удалить
-          </button>
-        </div>
-      </li>
-    </ul>
+      </div>
+    </template>
     </template>
   </div>
 </template>
