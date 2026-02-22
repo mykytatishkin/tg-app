@@ -1,11 +1,12 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Between, Repository } from 'typeorm';
+import { In, Between, LessThanOrEqual, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { Appointment, AppointmentStatus, AppointmentSource } from './entities/appointment.entity';
 import { MonthlyExpense } from './entities/monthly-expense.entity';
+import { ScheduledDiscountBroadcast } from './entities/scheduled-discount-broadcast.entity';
 import { User } from '../auth/entities/user.entity';
 import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
@@ -33,6 +34,8 @@ export class CrmService {
     private appointmentRepo: Repository<Appointment>,
     @InjectRepository(MonthlyExpense)
     private monthlyExpenseRepo: Repository<MonthlyExpense>,
+    @InjectRepository(ScheduledDiscountBroadcast)
+    private scheduledBroadcastRepo: Repository<ScheduledDiscountBroadcast>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
     private botService: BotService,
@@ -80,7 +83,7 @@ export class CrmService {
     return users.map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
   }
 
-  /** Collect all telegramIds to notify about new discounts: clients + registered users (who opened the app). */
+  /** All telegramIds for discount notification: clients of this master + registered users. Used for second wave (1h later). */
   private async getTelegramIdsForDiscountNotification(masterId: string): Promise<string[]> {
     const clients = await this.clientRepo.find({
       where: { masterId },
@@ -96,6 +99,23 @@ export class CrmService {
       .map((u) => u.telegramId?.trim())
       .filter((id): id is string => Boolean(id) && !clientSet.has(id));
     return [...fromClients, ...fromUsers];
+  }
+
+  /** Only regulars (notifyAboutNewSlots): clients of this master with notifyAboutNewSlots === true. For first wave (immediate). */
+  private async getTelegramIdsForDiscountNotificationRegularsOnly(masterId: string): Promise<string[]> {
+    const clients = await this.clientRepo.find({
+      where: { masterId, notifyAboutNewSlots: true },
+      select: ['telegramId'],
+    });
+    return clients.map((c) => c.telegramId?.trim()).filter(Boolean) as string[];
+  }
+
+  /** Everyone except regulars (notifyAboutNewSlots): for second wave so we don't double-send to them. */
+  private async getTelegramIdsForDiscountNotificationRest(masterId: string): Promise<string[]> {
+    const all = await this.getTelegramIdsForDiscountNotification(masterId);
+    const regulars = await this.getTelegramIdsForDiscountNotificationRegularsOnly(masterId);
+    const regularSet = new Set(regulars);
+    return all.filter((id) => !regularSet.has(id));
   }
 
   /** Id prefix for "user-only" entries (registered but never booked). */
@@ -404,6 +424,7 @@ export class CrmService {
           instagram: dto.instagram ?? null,
           notes: dto.notes ?? null,
           masterNickname: dto.masterNickname ?? null,
+          notifyAboutNewSlots: dto.notifyAboutNewSlots ?? false,
         });
         await this.clientRepo.save(client);
       }
@@ -620,12 +641,25 @@ export class CrmService {
     const hasNewDiscount =
       saved.priceModifier != null && Number(saved.priceModifier) < 0;
     if (hasNewDiscount) {
-      const telegramIds = await this.getTelegramIdsForDiscountNotification(masterId);
-      if (telegramIds.length > 0) {
-        this.botService.notifyAllAboutNewDiscounts(telegramIds).catch((err) => {
+      const regularIds = await this.getTelegramIdsForDiscountNotificationRegularsOnly(masterId);
+      if (regularIds.length > 0) {
+        const sent = await this.botService.notifyAllAboutNewDiscounts(regularIds).catch((err) => {
           console.error('Notify about new discount error:', err);
+          return [] as string[];
         });
+        if (sent.length > 0) {
+          await this.clientRepo.update(
+            { masterId, telegramId: In(sent) },
+            { lastNewSlotsNotificationSentAt: new Date() },
+          );
+        }
       }
+      await this.scheduledBroadcastRepo.save(
+        this.scheduledBroadcastRepo.create({
+          masterId,
+          runAt: new Date(Date.now() + 60 * 60 * 1000),
+        }),
+      );
     }
     return saved;
   }
@@ -683,14 +717,53 @@ export class CrmService {
     const hasNewDiscount =
       !hadDiscount && newPriceModifier != null && newPriceModifier < 0;
     if (hasNewDiscount) {
-      const telegramIds = await this.getTelegramIdsForDiscountNotification(masterId);
-      if (telegramIds.length > 0) {
-        this.botService.notifyAllAboutNewDiscounts(telegramIds).catch((err) => {
+      const regularIds = await this.getTelegramIdsForDiscountNotificationRegularsOnly(masterId);
+      if (regularIds.length > 0) {
+        const sent = await this.botService.notifyAllAboutNewDiscounts(regularIds).catch((err) => {
           console.error('Notify about new discount error:', err);
+          return [] as string[];
         });
+        if (sent.length > 0) {
+          await this.clientRepo.update(
+            { masterId, telegramId: In(sent) },
+            { lastNewSlotsNotificationSentAt: new Date() },
+          );
+        }
       }
+      await this.scheduledBroadcastRepo.save(
+        this.scheduledBroadcastRepo.create({
+          masterId,
+          runAt: new Date(Date.now() + 60 * 60 * 1000),
+        }),
+      );
     }
     return updated;
+  }
+
+  /** Process due scheduled discount broadcasts (second wave, 1h after new discount). Call from cron every 5–10 min. */
+  async processScheduledDiscountBroadcasts(): Promise<void> {
+    const now = new Date();
+    const toRun = await this.scheduledBroadcastRepo.find({
+      where: { runAt: LessThanOrEqual(now) },
+      order: { runAt: 'ASC' },
+    });
+    for (const row of toRun) {
+      try {
+        const restIds = await this.getTelegramIdsForDiscountNotificationRest(row.masterId);
+        if (restIds.length > 0) {
+          const sent = await this.botService.notifyAllAboutNewDiscounts(restIds);
+          if (sent.length > 0) {
+            await this.clientRepo.update(
+              { masterId: row.masterId, telegramId: In(sent) },
+              { lastNewSlotsNotificationSentAt: new Date() },
+            );
+          }
+        }
+      } catch (err) {
+        console.error('processScheduledDiscountBroadcasts error for master', row.masterId, err);
+      }
+      await this.scheduledBroadcastRepo.delete({ id: row.id });
+    }
   }
 
   async deleteAvailability(user: User, id: string) {

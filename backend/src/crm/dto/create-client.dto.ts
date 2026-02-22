@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsBoolean } from 'class-validator';
 
 export class CreateClientDto {
   @IsString()
@@ -29,4 +29,9 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   masterNickname?: string;
+
+  /** Постоянный клиент: получает оповещение о новых слотах со скидкой на час раньше. */
+  @IsBoolean()
+  @IsOptional()
+  notifyAboutNewSlots?: boolean;
 }

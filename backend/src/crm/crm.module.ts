@@ -3,21 +3,23 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CrmController } from './crm.controller';
 import { CrmService } from './crm.service';
 import { ClientRemindersService } from './client-reminders.service';
+import { ScheduledDiscountBroadcastCronService } from './scheduled-discount-broadcast-cron.service';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { Appointment } from './entities/appointment.entity';
 import { AppointmentFeedback } from './entities/appointment-feedback.entity';
 import { MonthlyExpense } from './entities/monthly-expense.entity';
+import { ScheduledDiscountBroadcast } from './entities/scheduled-discount-broadcast.entity';
 import { User } from '../auth/entities/user.entity';
 import { BotModule } from '../bot/bot.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Client, Service, AvailabilitySlot, Appointment, AppointmentFeedback, MonthlyExpense, User]),
+    TypeOrmModule.forFeature([Client, Service, AvailabilitySlot, Appointment, AppointmentFeedback, MonthlyExpense, ScheduledDiscountBroadcast, User]),
     BotModule,
   ],
   controllers: [CrmController],
-  providers: [CrmService, ClientRemindersService],
+  providers: [CrmService, ClientRemindersService, ScheduledDiscountBroadcastCronService],
 })
 export class CrmModule {}

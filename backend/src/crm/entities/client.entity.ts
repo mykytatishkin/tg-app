@@ -47,6 +47,14 @@ export class Client {
   @Column({ type: 'timestamp', nullable: true })
   lastReminderSentAt: Date | null;
 
+  /** Постоянный клиент: получает оповещение о новых слотах со скидкой на час раньше остальных. */
+  @Column({ type: 'boolean', default: false })
+  notifyAboutNewSlots: boolean;
+
+  /** When we last sent this client the "new discount slots" notification (either wave). */
+  @Column({ type: 'timestamp', nullable: true })
+  lastNewSlotsNotificationSentAt: Date | null;
+
   @Column({ type: 'varchar' })
   masterId: string;
 

@@ -382,6 +382,12 @@ watch([masterId, isAdmin], load);
             >
               Ненадёжный ({{ c.noShowCount }})
             </span>
+            <span
+              v-if="c.notifyAboutNewSlots"
+              class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/15 text-emerald-600"
+            >
+              Постоянный клиент
+            </span>
           </div>
         </div>
         <div class="text-sm mt-2 text-[var(--tg-theme-hint-color,#999)]">

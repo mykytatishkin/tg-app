@@ -450,6 +450,62 @@ import { getTodayInVilnius, parseDateTimeInVilnius } from '../shared/timezone.ut
 
 ---
 
+## 13. Постоянные клиенты и статус оповещений о новых слотах
+
+Мастер может отмечать клиентов как «постоянных» (получают оповещения о новых слотах со скидкой). Постоянные клиенты получают уведомление сразу при появлении скидочного слота; остальные — через 1 час. В админке отображаются признак постоянного клиента и дата последней отправки оповещения.
+
+### 13.1 backend: сущности
+
+**backend/src/crm/entities/client.entity.ts**
+
+- Добавить поле `notifyAboutNewSlots: boolean` (default: `false`) — постоянный клиент.
+- Добавить поле `lastNewSlotsNotificationSentAt: Date | null` — когда этому клиенту последний раз отправили оповещение о новых слотах.
+
+**backend/src/crm/entities/scheduled-discount-broadcast.entity.ts** (новая сущность)
+
+- Таблица `scheduled_discount_broadcasts`: `id` (uuid), `masterId` (varchar), `runAt` (timestamp). Одна запись = одна отложенная рассылка «остальным» через 1 час.
+
+**backend/src/crm/dto/create-client.dto.ts**
+
+- Добавить опциональное поле `notifyAboutNewSlots?: boolean`.
+
+### 13.2 backend: CRM-сервис
+
+**backend/src/crm/crm.service.ts**
+
+- Инжектить репозиторий `ScheduledDiscountBroadcast`.
+- Оставить метод `getTelegramIdsForDiscountNotification(masterId)` — все (клиенты + зарегистрированные пользователи) для второй волны.
+- Добавить `getTelegramIdsForDiscountNotificationRegularsOnly(masterId)` — только клиенты мастера с `notifyAboutNewSlots === true` и непустым `telegramId`.
+- Добавить `getTelegramIdsForDiscountNotificationRest(masterId)` — тот же набор, что «все», минус telegramId постоялок (чтобы через час не слать повторно).
+- В **createAvailability** и **updateAvailability** при появлении скидки (`hasNewDiscount`):
+  1. Взять `regularIds = getTelegramIdsForDiscountNotificationRegularsOnly(masterId)`.
+  2. Если есть — вызвать `notifyAllAboutNewDiscounts(regularIds)`, по возвращённому списку успешно отправленных обновить у клиентов `lastNewSlotsNotificationSentAt = now()`.
+  3. Всегда создавать запись в `scheduled_discount_broadcasts`: `{ masterId, runAt: now + 1 hour }`. Мгновенную рассылку «всем» не вызывать.
+- Добавить метод **processScheduledDiscountBroadcasts()**: найти записи с `runAt <= now()`, для каждой masterId взять `restIds = getTelegramIdsForDiscountNotificationRest(masterId)`, вызвать `notifyAllAboutNewDiscounts(restIds)`, обновить `lastNewSlotsNotificationSentAt` у клиентов по отправленным id, удалить обработанную запись.
+- **updateClient:** сохранять поле `notifyAboutNewSlots` (оно уже в DTO).
+
+**backend/src/bot/bot.service.ts**
+
+- **notifyAllAboutNewDiscounts(telegramIds):** возвращать `Promise<string[]>` — список telegramId, которым сообщение успешно доставлено (например `Array.from(sent)`).
+- Текст сообщения: явно указать возможность записаться (кнопка «Записаться» уже есть).
+
+### 13.3 backend: cron отложенной рассылки
+
+- Зарегистрировать в CrmModule провайдер **ScheduledDiscountBroadcastCronService** (см. backend/src/crm/scheduled-discount-broadcast-cron.service.ts): в `onModuleInit` запустить интервал каждые 5 минут, вызывать `crmService.processScheduledDiscountBroadcasts()`.
+
+### 13.4 frontend
+
+**frontend/src/views/admin/Clients.vue**
+
+- В списке клиентов показывать бейдж «Постоянный клиент» (или «Оповещения о слотах») у клиентов с `notifyAboutNewSlots === true`.
+
+**frontend/src/views/admin/ClientDetail.vue**
+
+- В форме редактирования: переключатель «Получает оповещения о новых слотах (постоянный клиент)», значение `editForm.notifyAboutNewSlots`, сохранение через PUT с полем `notifyAboutNewSlots`.
+- В карточке (режим просмотра): отображать, включена ли опция; при наличии `lastNewSlotsNotificationSentAt` — «Оповещение о новых слотах отправлено: ДД.ММ.ГГГГ ЧЧ:ММ».
+
+---
+
 ## Миграция БД
 
 Одна миграция (или `synchronize: true` в dev):
@@ -458,6 +514,10 @@ ALTER TABLE clients ADD COLUMN "noShowCount" int DEFAULT 0;
 ALTER TABLE appointments ADD COLUMN "postSessionSentAt" timestamp NULL;
 ALTER TABLE users ADD COLUMN "favoriteDays" json NULL;
 ALTER TABLE users ADD COLUMN "favoriteTimeBuckets" json NULL;
+-- Постоянные клиенты и оповещения о новых слотах:
+ALTER TABLE clients ADD COLUMN "notifyAboutNewSlots" boolean DEFAULT false;
+ALTER TABLE clients ADD COLUMN "lastNewSlotsNotificationSentAt" timestamp NULL;
+CREATE TABLE scheduled_discount_broadcasts (id uuid PRIMARY KEY, "masterId" varchar, "runAt" timestamp);
 ```
 Новые значения статусов `'no_show'` и `'rescheduled'` — просто строки в varchar-колонке, миграция не нужна.
 
@@ -490,5 +550,8 @@ ALTER TABLE users ADD COLUMN "favoriteTimeBuckets" json NULL;
 - [ ] В профиле клиента — toggle-кнопки для выбора любимых дней и времени.
 - [ ] В client-reminders при 21-дневном напоминании сначала используются ручные предпочтения, затем fallback на историю.
 - [ ] Клиенты не видят прошедшие даты и прошедшие слоты при записи.
+- [ ] Постоянные клиенты: флаг «получает оповещения о новых слотах» в карточке клиента, бейдж в списке клиентов.
+- [ ] При появлении скидочного слота постоянные клиенты получают оповещение сразу, остальные — через 1 час (cron каждые 5 мин).
+- [ ] В карточке клиента отображается дата последней отправки оповещения о новых слотах.
 
 **Скрипт дампа:** в [backend/scripts/reorder-dump-data-only.mjs](backend/scripts/reorder-dump-data-only.mjs) в комментарии «Tables and usage» описано назначение таблиц дампа, в т.ч. `availability_slots` и `appointments` для статистики «Окошки (слоты) за месяц» (slotStats).

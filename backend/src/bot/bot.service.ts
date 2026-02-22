@@ -581,10 +581,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Notify multiple users about new discount slots: message + "Записаться" button. Skips users who blocked the bot. */
-  async notifyAllAboutNewDiscounts(telegramIds: string[]): Promise<void> {
+  /** Notify multiple users about new discount slots: message + "Записаться" button. Returns telegramIds that were successfully sent. */
+  async notifyAllAboutNewDiscounts(telegramIds: string[]): Promise<string[]> {
     const appUrl = this.configService.get<string>('MINI_APP_URL');
-    if (!appUrl || !this.bot) return;
+    if (!appUrl || !this.bot) return [];
     const bookUrl = `${appUrl.replace(/\/$/, '')}/appointments/book`;
     const text =
       '✨ Появились новые места со скидкой! Записаться можно в разделе «Скидки» или по кнопке ниже.';
@@ -595,6 +595,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       const ok = await this.sendMessageWithWebAppButton(id, text, 'Записаться', bookUrl);
       if (ok) sent.add(id);
     }
+    return Array.from(sent);
   }
 
   /** Request feedback from client after session: "Оцените сеанс 1–5 звёзд" + inline buttons. */

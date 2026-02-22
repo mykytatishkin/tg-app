@@ -12,7 +12,7 @@ const client = ref(null);
 const loading = ref(true);
 const error = ref(null);
 const editing = ref(false);
-const editForm = ref({ name: '', phone: '', username: '', instagram: '', notes: '', masterNickname: '' });
+const editForm = ref({ name: '', phone: '', username: '', instagram: '', notes: '', masterNickname: '', notifyAboutNewSlots: false });
 const saving = ref(false);
 const reminderSending = ref(null);
 const reminderMessage = ref(null);
@@ -32,6 +32,7 @@ async function load() {
         instagram: client.value.instagram ?? '',
         notes: client.value.notes ?? '',
         masterNickname: client.value.masterNickname ?? '',
+        notifyAboutNewSlots: !!client.value.notifyAboutNewSlots,
       };
     }
   } catch (e) {
@@ -50,6 +51,7 @@ function startEdit() {
     instagram: client.value?.instagram ?? '',
     notes: client.value?.notes ?? '',
     masterNickname: client.value?.masterNickname ?? '',
+    notifyAboutNewSlots: !!client.value?.notifyAboutNewSlots,
   };
 }
 
@@ -68,6 +70,7 @@ async function save() {
       instagram: editForm.value.instagram?.trim() || undefined,
       notes: editForm.value.notes || undefined,
       masterNickname: editForm.value.masterNickname || undefined,
+      notifyAboutNewSlots: editForm.value.notifyAboutNewSlots,
     };
     const res = await api.put(`/crm/clients/${id.value}`, payload);
     if (res?.id && res.id !== id.value && !String(res.id).startsWith('u-')) {
@@ -96,6 +99,11 @@ function goBack() {
 function formatDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function formatDateTime(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function instagramLink(value) {
@@ -159,6 +167,12 @@ onMounted(load);
                 {{ client.noShowCount > 2 ? 'Ненадёжный' : 'Пропуски' }}: {{ client.noShowCount }}
               </span>
             </div>
+            <div v-if="client.notifyAboutNewSlots" class="mt-2">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/15 text-emerald-600">Постоянный клиент — оповещения о новых слотах</span>
+            </div>
+            <div v-if="client.lastNewSlotsNotificationSentAt" class="mt-2 text-xs text-[var(--tg-theme-hint-color,#999)]">
+              Оповещение о новых слотах отправлено: {{ formatDateTime(client.lastNewSlotsNotificationSentAt) }}
+            </div>
           </div>
           <button
             v-if="!editing"
@@ -217,6 +231,10 @@ onMounted(load);
         <div>
           <label for="edit-notes" class="block text-sm font-medium mb-1">Заметки</label>
           <textarea id="edit-notes" v-model="editForm.notes" rows="3" class="w-full px-3 py-2 rounded-lg border border-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]"></textarea>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="edit-notifyAboutNewSlots" v-model="editForm.notifyAboutNewSlots" type="checkbox" class="rounded border-[var(--tg-theme-hint-color,#999)]" />
+          <label for="edit-notifyAboutNewSlots" class="text-sm font-medium">Получает оповещения о новых слотах (постоянный клиент)</label>
         </div>
         <div class="flex gap-2">
           <button type="submit" class="px-4 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]" :disabled="saving">
