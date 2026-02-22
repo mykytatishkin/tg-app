@@ -246,7 +246,7 @@ onMounted(load);
             </div>
             <div v-if="(client.stats.ltv ?? 0) > 0" class="text-right">
               <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Потрачено в сумме</div>
-              <div class="text-2xl font-semibold text-[var(--tg-theme-button-color,#1a1a1a)]">{{ client.stats.ltv.toFixed(2) }} €</div>
+              <div class="text-2xl font-semibold text-[var(--tg-theme-text-color,#000)]">{{ client.stats.ltv.toFixed(2) }} €</div>
             </div>
           </div>
           <div v-if="client.stats.lastVisitAt" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">

@@ -149,6 +149,21 @@ const showAppointmentsModal = ref(false);
 const appointmentsList = ref([]);
 const loadingAppointments = ref(false);
 
+const showFeedbackModal = ref(false);
+const showRatingModal = ref(false);
+const feedbackList = ref([]);
+const loadingFeedback = ref(false);
+/** 'newest' | 'oldest' */
+const feedbackSortDate = ref('newest');
+/** 'high' | 'low' — по рейтингу: сначала 5 ★ или сначала 1 ★ */
+const feedbackSortStars = ref('high');
+/** 'all' | '1'..'5' — фильтр: все отзывы или только с N звёздами */
+const feedbackFilterStars = ref('all');
+
+const showClientsModal = ref(false);
+const clientsList = ref([]);
+const loadingClients = ref(false);
+
 /** Appointments grouped by date (desc), each key is YYYY-MM-DD, value is array of appointments. */
 const appointmentsByDate = computed(() => {
   const list = appointmentsList.value ?? [];
@@ -162,6 +177,75 @@ const appointmentsByDate = computed(() => {
     arr.sort((x, y) => (x.startTime || '').localeCompare(y.startTime || ''));
   }
   return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+});
+
+/** Feedback entries (from appointments with feedback), filtered by rating, grouped by date; sort by date and by stars. */
+const feedbackByDate = computed(() => {
+  let list = feedbackList.value ?? [];
+  const filterStars = feedbackFilterStars.value;
+  if (filterStars !== 'all') {
+    const n = parseInt(filterStars, 10);
+    list = list.filter((a) => (a.feedback?.rating ?? 0) === n);
+  }
+  const map = new Map();
+  for (const a of list) {
+    const d = typeof a.date === 'string' ? a.date.slice(0, 10) : (a.date && a.date.toISOString?.())?.slice(0, 10) ?? '';
+    if (!map.has(d)) map.set(d, []);
+    map.get(d).push(a);
+  }
+  const byStars = feedbackSortStars.value === 'high' ? (x, y) => (y.feedback?.rating ?? 0) - (x.feedback?.rating ?? 0) : (x, y) => (x.feedback?.rating ?? 0) - (y.feedback?.rating ?? 0);
+  for (const arr of map.values()) {
+    arr.sort(byStars);
+  }
+  const dateOrder = feedbackSortDate.value === 'newest' ? (a, b) => b[0].localeCompare(a[0]) : (a, b) => a[0].localeCompare(b[0]);
+  return Array.from(map.entries()).sort(dateOrder);
+});
+
+/** Distribution of feedback by stars (1–5) for rating modal bar chart. */
+const feedbackStarsDistribution = computed(() => {
+  const list = feedbackList.value ?? [];
+  return [1, 2, 3, 4, 5].map((stars) => ({
+    stars,
+    count: list.filter((a) => (a.feedback?.rating ?? 0) === stars).length,
+  }));
+});
+
+const feedbackStarsChartMax = computed(() => {
+  const dist = feedbackStarsDistribution.value;
+  if (!dist.length) return 1;
+  return Math.max(...dist.map((d) => d.count), 1);
+});
+
+/** Latest feedback for rating modal feed (newest first). */
+const feedbackLatestForRating = computed(() => {
+  const list = [...(feedbackList.value ?? [])];
+  list.sort((a, b) => {
+    const da = typeof a.date === 'string' ? a.date : (a.date?.toISOString?.() ?? '');
+    const db = typeof b.date === 'string' ? b.date : (b.date?.toISOString?.() ?? '');
+    return db.localeCompare(da);
+  });
+  return list;
+});
+
+/** Clients grouped by lastVisitAt date (desc). */
+const clientsByDate = computed(() => {
+  const list = clientsList.value ?? [];
+  const map = new Map();
+  for (const c of list) {
+    const lastAt = c.lastVisitAt;
+    const d = lastAt ? (typeof lastAt === 'string' ? lastAt.slice(0, 10) : (lastAt.toISOString?.()?.slice(0, 10)) ?? '') : '__no_visit__';
+    if (!map.has(d)) map.set(d, []);
+    map.get(d).push(c);
+  }
+  for (const arr of map.values()) {
+    arr.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+  }
+  const entries = Array.from(map.entries()).sort((a, b) => {
+    if (a[0] === '__no_visit__') return 1;
+    if (b[0] === '__no_visit__') return -1;
+    return b[0].localeCompare(a[0]);
+  });
+  return entries;
 });
 
 function formatDateHeader(dateStr) {
@@ -223,8 +307,99 @@ function closeAppointmentsModal() {
   showAppointmentsModal.value = false;
 }
 
+async function openFeedbackModal() {
+  hapticFeedback?.('light');
+  showFeedbackModal.value = true;
+  loadingFeedback.value = true;
+  feedbackList.value = [];
+  try {
+    const params = new URLSearchParams();
+    if (filterYearMonth.value) {
+      const [y, m] = filterYearMonth.value.split('-');
+      const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+      params.set('from', `${y}-${m}-01`);
+      params.set('to', `${y}-${m}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      const end = new Date();
+      const start = new Date(end.getFullYear() - 2, end.getMonth(), 1);
+      params.set('from', start.toISOString().slice(0, 10));
+      params.set('to', end.toISOString().slice(0, 10));
+    }
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
+    const list = await api.get('/crm/appointments?' + params.toString());
+    feedbackList.value = (list || []).filter((a) => a.feedback);
+  } catch (e) {
+    feedbackList.value = [];
+  } finally {
+    loadingFeedback.value = false;
+  }
+}
+
+function closeFeedbackModal() {
+  hapticFeedback?.('light');
+  showFeedbackModal.value = false;
+}
+
+async function openRatingModal() {
+  hapticFeedback?.('light');
+  showRatingModal.value = true;
+  loadingFeedback.value = true;
+  feedbackList.value = [];
+  try {
+    const params = new URLSearchParams();
+    if (filterYearMonth.value) {
+      const [y, m] = filterYearMonth.value.split('-');
+      const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+      params.set('from', `${y}-${m}-01`);
+      params.set('to', `${y}-${m}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      const end = new Date();
+      const start = new Date(end.getFullYear() - 2, end.getMonth(), 1);
+      params.set('from', start.toISOString().slice(0, 10));
+      params.set('to', end.toISOString().slice(0, 10));
+    }
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
+    const list = await api.get('/crm/appointments?' + params.toString());
+    feedbackList.value = (list || []).filter((a) => a.feedback);
+  } catch (e) {
+    feedbackList.value = [];
+  } finally {
+    loadingFeedback.value = false;
+  }
+}
+
+function closeRatingModal() {
+  hapticFeedback?.('light');
+  showRatingModal.value = false;
+}
+
+async function openClientsModal() {
+  hapticFeedback?.('light');
+  showClientsModal.value = true;
+  loadingClients.value = true;
+  clientsList.value = [];
+  try {
+    const params = new URLSearchParams();
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
+    const url = '/crm/clients' + (params.toString() ? '?' + params.toString() : '');
+    clientsList.value = await api.get(url);
+  } catch (e) {
+    clientsList.value = [];
+  } finally {
+    loadingClients.value = false;
+  }
+}
+
+function closeClientsModal() {
+  hapticFeedback?.('light');
+  showClientsModal.value = false;
+}
+
 function onPanelClick(panel) {
   if (panel === 'appointments') openAppointmentsModal();
+  else if (panel === 'feedback') openFeedbackModal();
+  else if (panel === 'clients') openClientsModal();
+  else if (panel === 'rating') openRatingModal();
   else hapticFeedback?.('light');
 }
 
@@ -579,7 +754,7 @@ watch([selectedMasterId, filterYearMonth], load);
               <template v-else>
                 <div v-for="[dateStr, items] in appointmentsByDate" :key="dateStr" class="mb-6">
                   <div class="text-center py-2 mb-3 text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] border-b border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
-                    ____ {{ formatDateHeader(dateStr) }} ____
+                    ——— {{ formatDateHeader(dateStr) }} ———
                   </div>
                   <div class="space-y-3">
                     <div
@@ -616,6 +791,229 @@ watch([selectedMasterId, filterYearMonth], load);
                         <p v-if="appointmentNote(a)" class="mt-2 pt-2 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
                           <span class="text-[var(--tg-theme-hint-color,#999)]">Примечание:</span> {{ appointmentNote(a) }}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Модальное окно: отзывы по датам -->
+      <Teleport to="body">
+        <div
+          v-if="showFeedbackModal"
+          class="fixed inset-0 z-[100] flex flex-col bg-black/50"
+          @click.self="closeFeedbackModal"
+        >
+          <div class="flex-1 min-h-0 flex flex-col m-4 rounded-2xl bg-[var(--tg-theme-bg-color,#fff)] shadow-xl max-h-[85vh]">
+            <div class="flex items-center justify-between shrink-0 p-4 border-b border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+              <h3 class="text-lg font-semibold text-[var(--tg-theme-text-color,#000)]">Отзывы</h3>
+              <button
+                type="button"
+                class="p-2 rounded-lg hover:bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+                aria-label="Закрыть"
+                @click="closeFeedbackModal"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="shrink-0 px-4 py-3 border-b border-[var(--tg-theme-section-separator-color,#e5e5e5)] flex flex-wrap items-center gap-3">
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">По дате:</span>
+                <select
+                  v-model="feedbackSortDate"
+                  class="text-sm px-2 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
+                >
+                  <option value="newest">Сначала новые</option>
+                  <option value="oldest">Сначала старые</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">По рейтингу:</span>
+                <select
+                  v-model="feedbackSortStars"
+                  class="text-sm px-2 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
+                >
+                  <option value="high">Сначала 5 ★</option>
+                  <option value="low">Сначала 1 ★</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Показать:</span>
+                <select
+                  v-model="feedbackFilterStars"
+                  class="text-sm px-2 py-1.5 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
+                >
+                  <option value="all">Все</option>
+                  <option value="5">Только 5 ★</option>
+                  <option value="4">Только 4 ★</option>
+                  <option value="3">Только 3 ★</option>
+                  <option value="2">Только 2 ★</option>
+                  <option value="1">Только 1 ★</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto p-4">
+              <div v-if="loadingFeedback" class="text-[var(--tg-theme-hint-color,#999)] py-8 text-center">Загрузка…</div>
+              <template v-else-if="!feedbackByDate.length">
+                <p class="text-[var(--tg-theme-hint-color,#999)] py-4 text-center">Нет отзывов за выбранный период.</p>
+              </template>
+              <template v-else>
+                <div v-for="[dateStr, items] in feedbackByDate" :key="dateStr" class="mb-6">
+                  <div class="text-center py-2 mb-3 text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] border-b border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                    ——— {{ formatDateHeader(dateStr) }} ———
+                  </div>
+                  <div class="space-y-3">
+                    <div
+                      v-for="a in items"
+                      :key="a.id"
+                      class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+                    >
+                      <div class="font-medium text-[var(--tg-theme-text-color,#000)] mb-1">
+                        {{ a.client?.name ?? 'Клиент' }}
+                      </div>
+                      <div class="text-sm text-[var(--tg-theme-hint-color,#6b7280)] space-y-1">
+                        <p>
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Услуга:</span>
+                          {{ a.service?.name ?? '—' }}
+                        </p>
+                        <p>
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Оценка:</span>
+                          <span v-if="a.feedback?.rating != null" class="text-yellow-500" aria-hidden="true">{{ '★'.repeat(a.feedback.rating) }}{{ '☆'.repeat(5 - a.feedback.rating) }}</span>
+                          <span v-else>—</span>
+                          <span class="text-sm text-[var(--tg-theme-hint-color,#999)] ml-1">{{ a.feedback?.rating != null ? `${a.feedback.rating} из 5` : '' }}</span>
+                        </p>
+                        <p v-if="a.feedback?.comment" class="mt-2">
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Отзыв:</span>
+                          {{ a.feedback.comment }}
+                        </p>
+                        <p v-if="a.feedback?.whatWasGood?.length" class="text-xs text-[var(--tg-theme-hint-color,#999)]">
+                          Понравилось: {{ a.feedback.whatWasGood.join(', ') }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Модальное окно: средний рейтинг — bar chart по звёздам + лента отзывов -->
+      <Teleport to="body">
+        <div
+          v-if="showRatingModal"
+          class="fixed inset-0 z-[100] flex flex-col bg-black/50"
+          @click.self="closeRatingModal"
+        >
+          <div class="flex-1 min-h-0 flex flex-col m-4 rounded-2xl bg-[var(--tg-theme-bg-color,#fff)] shadow-xl max-h-[85vh]">
+            <div class="flex items-center justify-between shrink-0 p-4 border-b border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+              <h3 class="text-lg font-semibold text-[var(--tg-theme-text-color,#000)]">Средний рейтинг</h3>
+              <button
+                type="button"
+                class="p-2 rounded-lg hover:bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+                aria-label="Закрыть"
+                @click="closeRatingModal"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto p-4">
+              <div v-if="loadingFeedback" class="text-[var(--tg-theme-hint-color,#999)] py-8 text-center">Загрузка…</div>
+              <template v-else>
+                <div class="mb-6">
+                  <h4 class="text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] mb-3">Распределение по звёздам</h4>
+                  <div class="space-y-3">
+                    <div
+                      v-for="d in feedbackStarsDistribution"
+                      :key="d.stars"
+                      class="flex flex-col gap-1"
+                    >
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-sm font-medium shrink-0">{{ d.stars }} ★</span>
+                        <span class="text-sm text-[var(--tg-theme-hint-color,#999)] shrink-0">{{ d.count }} {{ d.count === 1 ? 'отзыв' : d.count < 5 ? 'отзыва' : 'отзывов' }}</span>
+                      </div>
+                      <div class="h-6 rounded-lg overflow-hidden bg-[var(--tg-theme-section-separator-color,#e5e5e5)]/30">
+                        <div
+                          class="h-full rounded-lg bg-[var(--tg-theme-button-color,#3b82f6)] transition-[width] duration-300"
+                          :style="{ width: feedbackStarsChartMax ? `${(d.count / feedbackStarsChartMax) * 100}%` : '0%' }"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <h4 class="text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] mb-3">Последние отзывы</h4>
+                <template v-if="!feedbackLatestForRating.length">
+                  <p class="text-[var(--tg-theme-hint-color,#999)] py-4 text-center">Нет отзывов за выбранный период.</p>
+                </template>
+                <ul v-else class="space-y-3">
+                  <li
+                    v-for="a in feedbackLatestForRating"
+                    :key="a.id"
+                    class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <span class="font-medium text-[var(--tg-theme-text-color,#000)]">{{ a.client?.name ?? 'Клиент' }}</span>
+                      <span v-if="a.feedback?.rating != null" class="text-yellow-500 text-lg" aria-hidden="true">{{ '★'.repeat(a.feedback.rating) }}{{ '☆'.repeat(5 - a.feedback.rating) }}</span>
+                    </div>
+                    <p class="text-sm text-[var(--tg-theme-hint-color,#6b7280)] mb-1">
+                      <span class="text-[var(--tg-theme-hint-color,#999)]">Услуга:</span> {{ a.service?.name ?? '—' }}
+                    </p>
+                    <p v-if="a.feedback?.comment" class="text-sm text-[var(--tg-theme-text-color,#000)]">{{ a.feedback.comment }}</p>
+                    <p v-if="a.date" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-2">
+                      {{ formatDateHeader(typeof a.date === 'string' ? a.date.slice(0, 10) : (a.date?.toISOString?.() ?? '').slice(0, 10)) }}
+                    </p>
+                  </li>
+                </ul>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <!-- Модальное окно: клиенты по дате последней записи -->
+      <Teleport to="body">
+        <div
+          v-if="showClientsModal"
+          class="fixed inset-0 z-[100] flex flex-col bg-black/50"
+          @click.self="closeClientsModal"
+        >
+          <div class="flex-1 min-h-0 flex flex-col m-4 rounded-2xl bg-[var(--tg-theme-bg-color,#fff)] shadow-xl max-h-[85vh]">
+            <div class="flex items-center justify-between shrink-0 p-4 border-b border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+              <h3 class="text-lg font-semibold text-[var(--tg-theme-text-color,#000)]">Клиенты</h3>
+              <button
+                type="button"
+                class="p-2 rounded-lg hover:bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+                aria-label="Закрыть"
+                @click="closeClientsModal"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto p-4">
+              <div v-if="loadingClients" class="text-[var(--tg-theme-hint-color,#999)] py-8 text-center">Загрузка…</div>
+              <template v-else-if="!clientsByDate.length">
+                <p class="text-[var(--tg-theme-hint-color,#999)] py-4 text-center">Нет клиентов.</p>
+              </template>
+              <template v-else>
+                <div v-for="[dateKey, clients] in clientsByDate" :key="dateKey" class="mb-6">
+                  <div class="text-center py-2 mb-3 text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] border-b border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                    ——— {{ dateKey === '__no_visit__' ? 'Без записей' : formatDateHeader(dateKey) }} ———
+                  </div>
+                  <div class="space-y-2">
+                    <div
+                      v-for="c in clients"
+                      :key="c.id"
+                      class="rounded-xl p-3 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+                    >
+                      <div class="font-medium text-[var(--tg-theme-text-color,#000)]">{{ c.name }}</div>
+                      <div v-if="c.visitCount != null" class="text-xs text-[var(--tg-theme-hint-color,#999)]">
+                        {{ c.visitCount }} записей
+                        <span v-if="(c.ltv ?? 0) > 0"> · {{ c.ltv.toFixed(2) }} €</span>
                       </div>
                     </div>
                   </div>

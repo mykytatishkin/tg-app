@@ -118,41 +118,50 @@ flowchart LR
 
 ## Features by role
 
-### Client (Mini App + Bot)
+### Со стороны клиента (Mini App + Bot)
 
-- **Booking** — Choose master → service → date → available slot; confirm booking; optional discount slots (promo).
-- **My appointments** — View upcoming/past; cancel; request reminder resend.
-- **Profile** — Set preferred drink (from master’s options), link Instagram (optional).
-- **Promo** — View current promo text and list of discount slots.
-- **Giveaways** — See active/ended giveaways; participate via **Telegram Bot** (not Mini App).
-- **Suggestions / feedback** — Submit suggestions (category + text); admins see and set status (pending/accepted/rejected).
-- **Post-session feedback (Bot)** — After visit, rate and optionally comment / select “what was good” (master-configurable options).
-- **Quick test (Bot)** — In-bot quick test flow (e.g. questionnaire with suggested courses).
-- **Re-engagement** — Receive “it’s been 2–3 weeks since your last visit” reminders with suggested slots.
+- **Запись** — выбор мастера → услуги → даты и свободного слота; подтверждение; слоты со скидкой (промо).
+- **Мои записи** — просмотр предстоящих и прошедших; отмена; повторная отправка напоминания.
+- **Профиль** — напиток (из опций мастера), Instagram (по желанию), **любимые дни и время** (учёт в рекомендациях слотов через 21 день).
+- **Моя статистика** — сколько потрачено в сумме; разбивка по мастерам и услугам (LTV).
+- **Промо** — текст промо и список слотов со скидкой.
+- **Розыгрыши** — список активных/завершённых; участие через **бота** (не Mini App).
+- **Предложения** — отправка предложений (категория + текст); админ меняет статус (ожидает/принято/отклонено).
+- **Отзыв после визита (бот)** — оценка 1–5, комментарий и «что понравилось» (опции мастера).
+- **Быстрый тест (бот)** — опрос в боте с рекомендацией курсов.
+- **Напоминания** — за 24 ч и за 5–10 мин до визита; через 2–3 недели после последнего визита — напоминание с рекомендованными слотами (по любимым дням/времени или по истории).
 
-### Master / Admin (Mini App)
+### Со стороны мастера (Mini App)
 
-- **Clients** — CRUD; notes; master-only nickname; Instagram; send manual reminder; view history.
-- **Services** — CRUD for services.
-- **Availability** — CRUD for availability slots (recurring or one-off).
-- **Appointments** — List/filter; confirm/cancel; create manually; view detail; link to client.
-- **Stats** — Dashboard (e.g. revenue, visits).
-- **Expenses** — Monthly expenses per master (year-month, amount).
-- **Giveaways** — Create (draft → set dates → activate); run draw; verify participants (Bot); notify winners (Bot).
-- **Custom time requests** — Clients request specific times; master accepts/declines (optional fee); optionally create appointment from accepted request.
-- **Suggestions** — List; update status (pending/accepted/rejected). *Admin only for management.*
-- **Drinks** — Configure drink options shown in reminders and client profile.
-- **Feedback options** — Configure “what was good” options for post-session feedback.
-- **Backups** — Trigger backup run; restore from file; destination: local / OneDrive / email; retention 7 days.
-- **Broadcast (Admin only)** — Send message to all users (e.g. Telegram).
+- **Клиенты** — список с поиском (имя, ник, инстаграм, телефон) и сортировкой (по последней/первой записи, алфавиту); фильтр «все / клиенты / без заказов»; счётчики; карточка: имя, контакты, бейдж «Клиент»/«Без заказов», пропуски (noShow), LTV; детальная карточка: контакты, заметки, потрачено в сумме, разбивка по услугам, пропуски/ненадёжный, последние записи; ручное напоминание (простое и «подходящее расписание»).
+- **Услуги** — CRUD.
+- **Доступность** — CRUD слотов; порядок от новых дат к старым; подсветка по дате (прошлое — красный, ближайшие 3 дня — зелёный); занятые слоты полупрозрачные с именем клиента.
+- **Записи** — список, фильтры, создание вручную, детали, отмена/подтверждение.
+- **Статистика** — панели: всего записей, клиентов, отзывов, средний рейтинг (все кликабельные); по клику на «Всего записей» — модалка со списком записей по датам; по клику на «Клиентов» — клиенты по дате последней записи; по клику на «Отзывов» — отзывы по датам (кто, услуга, оценка, текст). Заработок по месяцам, фильтр по месяцу; новые пользователи/новые клиенты (pie chart); записи по сервисам (bar chart); доход, себестоимость, аренда, прибыль.
+- **Расходы** — месячные расходы (год–месяц, сумма).
+- **Розыгрыши** — создание, даты, активация, розыгрыш, уведомление победителей (бот).
+- **Запросы своего времени** — клиенты запрашивают время; мастер принимает/отклоняет (доплата); создание записи из принятого запроса.
+- **Напитки** — опции напитков в напоминаниях и профиле клиента.
+- **Опции отзывов** — «что понравилось» для отзыва после визита.
+- **Бэкапы** — запуск, восстановление; OneDrive / email; хранение 7 дней.
+- **Уведомления в Telegram (бот)** — новая запись / отмена с кликабельным тегом клиента; при noShow > 0 — предупреждение в уведомлении о новой записи; после окончания времени приёма — вопрос «Завершили приём?» (Да / Нет → Перенос / Отменено / Клиент не пришёл).
 
-### Role summary
+### Со стороны админа (Mini App)
 
-| Role   | Mini App | Bot |
-|--------|----------|-----|
-| **Client** | Booking, profile, promo, giveaways list, suggestions | Giveaway participation, post-session feedback, quick test, reminders |
-| **Master** | Full CRM (clients, services, availability, appointments, stats, expenses, giveaways, custom time, drinks, backups) | — |
-| **Admin** | Everything Master + broadcast + suggestions management; multiple masters | — |
+- Всё, что у мастера, плюс:
+- **Список пользователей** — все зарегистрированные; фильтр по роли (все / админы / мастера); поиск и сортировка; переключение ролей (мастер/админ).
+- **Клиенты по мастеру** — выбор мастера → тот же функционал, что у мастера (поиск, сортировка, счётчики, LTV, noShow).
+- **Статистика по мастеру** — выбор мастера → та же статистика с модалками.
+- **Рассылка (Broadcast)** — отправка сообщения всем пользователям в Telegram.
+- **Предложения** — список и смена статуса (ожидает/принято/отклонено).
+
+### Сводка по ролям
+
+| Роль     | Mini App | Bot |
+|----------|----------|-----|
+| **Клиент** | Запись, профиль (в т.ч. любимые дни/время, статистика LTV), промо, список розыгрышей, предложения | Участие в розыгрышах, отзыв после визита, быстрый тест, напоминания |
+| **Мастер** | Клиенты (поиск, сортировка, LTV, noShow), услуги, доступность, записи, статистика (с модалками), расходы, розыгрыши, своё время, напитки, опции отзывов, бэкапы | Уведомления о записях/отменах, post-session «Завершили приём?» |
+| **Админ** | Всё у мастера + список пользователей и роли, клиенты по мастеру, рассылка, управление предложениями | — |
 
 ---
 
