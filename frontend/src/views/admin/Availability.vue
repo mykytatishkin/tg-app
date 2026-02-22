@@ -62,6 +62,7 @@ const editingSlotId = ref(null);
 const hidePastSlots = ref(true);
 const showOnlyUnbooked = ref(false);
 const viewMode = ref('list'); // 'list' | 'grouped'
+const sortOrder = ref('desc'); // 'desc' = от новых к старым, 'asc' = от старых к новым
 
 const filteredSlots = computed(() => {
   let list = slots.value;
@@ -74,10 +75,24 @@ const filteredSlots = computed(() => {
   return list;
 });
 
+const sortedFilteredSlots = computed(() => {
+  const list = [...filteredSlots.value];
+  const dir = sortOrder.value === 'asc' ? 1 : -1;
+  list.sort((a, b) => {
+    const dA = typeof a.date === 'string' ? a.date : (a.date?.toISOString?.() ?? '').slice(0, 10);
+    const dB = typeof b.date === 'string' ? b.date : (b.date?.toISOString?.() ?? '').slice(0, 10);
+    if (dA !== dB) return dir * dA.localeCompare(dB);
+    const tA = (a.startTime || '').slice(0, 5);
+    const tB = (b.startTime || '').slice(0, 5);
+    return dir * tA.localeCompare(tB);
+  });
+  return list;
+});
+
 const slotsByDate = computed(() => {
   const order = [];
   const byDate = {};
-  for (const s of filteredSlots.value) {
+  for (const s of sortedFilteredSlots.value) {
     const d = typeof s.date === 'string' ? s.date : (s.date?.toISOString?.() ?? '').slice(0, 10);
     if (!byDate[d]) {
       byDate[d] = [];
@@ -432,6 +447,24 @@ watch(selectedMasterId, load);
           По датам
         </button>
       </div>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity"
+          :class="sortOrder === 'desc' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="sortOrder = 'desc'"
+        >
+          Сначала новые
+        </button>
+        <button
+          type="button"
+          class="flex-1 py-2 rounded-lg text-sm font-medium transition-opacity"
+          :class="sortOrder === 'asc' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]' : 'bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="sortOrder = 'asc'"
+        >
+          Сначала старые
+        </button>
+      </div>
       <div class="space-y-2">
         <label class="flex items-center gap-2 cursor-pointer">
           <input v-model="hidePastSlots" type="checkbox" class="rounded">
@@ -447,7 +480,7 @@ watch(selectedMasterId, load);
     <template v-if="!loading && viewMode === 'list'">
       <ul class="space-y-3">
         <li
-          v-for="s in filteredSlots"
+          v-for="s in sortedFilteredSlots"
           :key="s.id"
           class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
           :class="[
