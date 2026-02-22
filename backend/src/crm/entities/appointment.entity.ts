@@ -107,6 +107,10 @@ export class Appointment {
   @Column({ type: 'timestamp', nullable: true })
   preSessionReminderSentAt: Date | null;
 
+  /** Выбор напитка клиентом перед сеансом (текст варианта из drinkOptions мастера). */
+  @Column({ type: 'varchar', nullable: true })
+  selectedDrinkLabel: string | null;
+
   /** Когда бот отправил клиенту запрос отзыва (чтобы не слать повторно). */
   @Column({ type: 'timestamp', nullable: true })
   feedbackRequestedAt: Date | null;

@@ -1033,6 +1033,20 @@ export class CrmService {
         };
       });
 
+    /** Популярность напитков: по записям с выбранным напитком (те же фильтры year/month). */
+    const drinkCountMap = new Map<string, number>();
+    for (const a of appointments) {
+      const label = (a as { selectedDrinkLabel?: string | null }).selectedDrinkLabel?.trim();
+      if (!label) continue;
+      const yearMonth = String(a.date).slice(0, 7);
+      if (year && yearMonth.slice(0, 4) !== year) continue;
+      if (month && yearMonth.slice(5, 7) !== month) continue;
+      drinkCountMap.set(label, (drinkCountMap.get(label) ?? 0) + 1);
+    }
+    const drinkStats = Array.from(drinkCountMap.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count);
+
     let totalRevenue = 0;
     let totalCost = 0;
     let totalMonthlyExpenses = 0;
@@ -1110,6 +1124,7 @@ export class CrmService {
       feedbackCount,
       averageRating: averageRating != null ? Math.round(averageRating * 10) / 10 : null,
       slotStats,
+      drinkStats,
     };
   }
 }

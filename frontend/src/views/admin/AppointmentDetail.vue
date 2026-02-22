@@ -150,6 +150,11 @@ async function saveDiscount() {
 
 function goBack() {
   hapticFeedback?.('light');
+  if (route.query.from === 'stats') {
+    const query = route.query.masterId ? { masterId: route.query.masterId } : undefined;
+    router.push({ path: '/admin/stats', query });
+    return;
+  }
   const query = route.query.showAll ? { showAll: '1' } : undefined;
   router.push({ path: '/admin/appointments', query });
 }

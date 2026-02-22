@@ -417,6 +417,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       const masterText = `${mention} будет через ${minutesLeft} мин и желает выпить <b>${escapeHtml(optionText)}</b>.`;
       await this.sendMessage(appointment.master.telegramId, masterText);
 
+      await this.appointmentRepo.update(
+        { id: appointmentId },
+        { selectedDrinkLabel: optionText },
+      );
+
       // Подтверждение клиенту: убираем кнопки и пишем, что напиток будет готов
       const msg = ctx.callbackQuery?.message && 'message_id' in ctx.callbackQuery.message ? ctx.callbackQuery.message : null;
       if (this.bot && msg) {

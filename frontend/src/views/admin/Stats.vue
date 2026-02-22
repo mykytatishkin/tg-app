@@ -160,6 +160,13 @@ const serviceChartMax = computed(() => {
   return Math.max(...list.map((s) => s.count), 1);
 });
 
+/** Max count in drinkStats for bar chart scale. */
+const drinkChartMax = computed(() => {
+  const list = stats.value?.drinkStats ?? [];
+  if (!list.length) return 1;
+  return Math.max(...list.map((d) => d.count), 1);
+});
+
 const showAppointmentsModal = ref(false);
 const appointmentsList = ref([]);
 const loadingAppointments = ref(false);
@@ -320,6 +327,15 @@ async function openAppointmentsModal() {
 function closeAppointmentsModal() {
   hapticFeedback?.('light');
   showAppointmentsModal.value = false;
+}
+
+function openAppointmentDetail(a) {
+  if (!a?.id) return;
+  hapticFeedback?.('light');
+  showAppointmentsModal.value = false;
+  const query = { from: 'stats' };
+  if (isAdmin.value && selectedMasterId.value) query.masterId = selectedMasterId.value;
+  router.push({ name: 'AdminAppointmentDetail', params: { id: a.id }, query });
 }
 
 async function openFeedbackModal() {
@@ -742,6 +758,30 @@ watch([selectedMasterId, filterYearMonth], load);
         </div>
       </div>
 
+      <h2 class="text-lg font-semibold mb-3">Популярность напитков</h2>
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-2">
+        Сколько раз клиенты выбирали каждый напиток{{ filterYearMonth ? ' за выбранный месяц' : '' }}.
+      </p>
+      <p v-if="!stats.drinkStats?.length" class="text-sm text-[var(--tg-theme-hint-color,#999)]">Нет данных (клиенты ещё не выбирали напитки).</p>
+      <div v-else class="space-y-4 mb-8">
+        <div
+          v-for="d in stats.drinkStats"
+          :key="d.label"
+          class="flex flex-col gap-1"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium min-w-0 truncate">{{ d.label }}</span>
+            <span class="text-sm text-[var(--tg-theme-hint-color,#999)] shrink-0">{{ d.count }}</span>
+          </div>
+          <div class="h-7 rounded-lg overflow-hidden bg-[var(--tg-theme-section-separator-color,#e5e5e5)]/30">
+            <div
+              class="h-full rounded-lg bg-[var(--tg-theme-button-color,#10b981)] transition-[width] duration-300"
+              :style="{ width: `${(d.count / drinkChartMax) * 100}%` }"
+            />
+          </div>
+        </div>
+      </div>
+
       <h2 v-if="filterYearMonth" class="text-lg font-semibold mb-3">Окошки (слоты) за месяц</h2>
       <template v-if="filterYearMonth">
         <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
@@ -810,7 +850,8 @@ watch([selectedMasterId, filterYearMonth], load);
                     <div
                       v-for="a in items"
                       :key="a.id"
-                      class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+                      class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity"
+                      @click="openAppointmentDetail(a)"
                     >
                       <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <span class="font-medium text-[var(--tg-theme-text-color,#000)]">
