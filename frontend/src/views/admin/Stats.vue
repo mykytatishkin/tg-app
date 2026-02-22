@@ -131,6 +131,103 @@ function formatMonth(ym) {
   return d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
 
+/** Pie chart for new users: madeOrder vs (registered - madeOrder). Returns conic-gradient CSS value. */
+function newUsersPieGradient(registered, madeOrder) {
+  if (!registered) return 'conic-gradient(#9ca3af 0turn 1turn)';
+  const pct = madeOrder / registered;
+  return `conic-gradient(#22c55e 0turn ${pct}turn, #9ca3af ${pct}turn 1turn)`;
+}
+
+/** Max count in byService for bar chart scale. */
+const serviceChartMax = computed(() => {
+  const list = stats.value?.byService ?? [];
+  if (!list.length) return 1;
+  return Math.max(...list.map((s) => s.count), 1);
+});
+
+const showAppointmentsModal = ref(false);
+const appointmentsList = ref([]);
+const loadingAppointments = ref(false);
+
+/** Appointments grouped by date (desc), each key is YYYY-MM-DD, value is array of appointments. */
+const appointmentsByDate = computed(() => {
+  const list = appointmentsList.value ?? [];
+  const map = new Map();
+  for (const a of list) {
+    const d = typeof a.date === 'string' ? a.date.slice(0, 10) : (a.date && a.date.toISOString?.())?.slice(0, 10) ?? '';
+    if (!map.has(d)) map.set(d, []);
+    map.get(d).push(a);
+  }
+  for (const arr of map.values()) {
+    arr.sort((x, y) => (x.startTime || '').localeCompare(y.startTime || ''));
+  }
+  return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+});
+
+function formatDateHeader(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function appointmentDisplayPrice(a) {
+  if (a.finalPrice != null && a.finalPrice !== '') return Number(a.finalPrice);
+  const price = a.service?.price;
+  if (price != null && price !== '') return Number(price);
+  return null;
+}
+
+function appointmentStatusLabel(a) {
+  if (a.status === 'cancelled') return 'Отменено';
+  if (a.status === 'done') return 'Завершено';
+  return 'Запланировано';
+}
+
+function appointmentNote(a) {
+  if (a.status === 'cancelled' && a.cancellationReason) return a.cancellationReason;
+  if (a.feedback?.comment) return a.feedback.comment;
+  return null;
+}
+
+async function openAppointmentsModal() {
+  hapticFeedback?.('light');
+  showAppointmentsModal.value = true;
+  loadingAppointments.value = true;
+  appointmentsList.value = [];
+  try {
+    const params = new URLSearchParams();
+    if (filterYearMonth.value) {
+      const [y, m] = filterYearMonth.value.split('-');
+      const lastDay = new Date(parseInt(y, 10), parseInt(m, 10), 0).getDate();
+      params.set('from', `${y}-${m}-01`);
+      params.set('to', `${y}-${m}-${String(lastDay).padStart(2, '0')}`);
+    } else {
+      const end = new Date();
+      const start = new Date(end.getFullYear() - 2, end.getMonth(), 1);
+      params.set('from', start.toISOString().slice(0, 10));
+      params.set('to', end.toISOString().slice(0, 10));
+    }
+    if (isAdmin.value && selectedMasterId.value) params.set('masterId', selectedMasterId.value);
+    const url = '/crm/appointments?' + params.toString();
+    appointmentsList.value = await api.get(url);
+  } catch (e) {
+    appointmentsList.value = [];
+  } finally {
+    loadingAppointments.value = false;
+  }
+}
+
+function closeAppointmentsModal() {
+  hapticFeedback?.('light');
+  showAppointmentsModal.value = false;
+}
+
+function onPanelClick(panel) {
+  if (panel === 'appointments') openAppointmentsModal();
+  else hapticFeedback?.('light');
+}
+
 function formatMoney(v) {
   return typeof v === 'number' ? v.toFixed(2) : '0.00';
 }
@@ -197,24 +294,40 @@ watch([selectedMasterId, filterYearMonth], load);
 
     <template v-else-if="stats">
       <div class="grid gap-4 mb-6 grid-cols-2">
-        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        <button
+          type="button"
+          class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity border border-transparent hover:border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          @click="onPanelClick('appointments')"
+        >
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Всего записей</div>
           <div class="text-2xl font-semibold">{{ stats.totalAppointments }}</div>
-        </div>
-        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        </button>
+        <button
+          type="button"
+          class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity border border-transparent hover:border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          @click="onPanelClick('clients')"
+        >
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Клиентов</div>
           <div class="text-2xl font-semibold">{{ stats.totalClients }}</div>
-        </div>
-        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        </button>
+        <button
+          type="button"
+          class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity border border-transparent hover:border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          @click="onPanelClick('feedback')"
+        >
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Отзывов</div>
           <div class="text-2xl font-semibold">{{ stats.feedbackCount ?? 0 }}</div>
-        </div>
-        <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        </button>
+        <button
+          type="button"
+          class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-left cursor-pointer hover:opacity-95 active:opacity-90 transition-opacity border border-transparent hover:border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+          @click="onPanelClick('rating')"
+        >
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Средний рейтинг</div>
           <div class="text-2xl font-semibold">
             {{ stats.averageRating != null ? stats.averageRating + ' ★' : '—' }}
           </div>
-        </div>
+        </button>
       </div>
 
       <h2 class="text-lg font-semibold mb-3">Заработок по месяцам</h2>
@@ -382,18 +495,136 @@ watch([selectedMasterId, filterYearMonth], load);
         </li>
       </ul>
 
-      <h2 class="text-lg font-semibold mb-3">Записи по сервисам</h2>
-      <p v-if="!stats.byService?.length" class="text-sm text-[var(--tg-theme-hint-color,#999)]">Нет данных.</p>
-      <ul v-else class="space-y-2">
+      <h2 class="text-lg font-semibold mb-3">Новые пользователи / новые клиенты</h2>
+      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
+        По месяцам: сколько новых людей появилось у мастера и сколько из них сделали первый заказ.
+      </p>
+      <p v-if="!stats.newUsersByMonth?.length" class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-6">Нет данных.</p>
+      <ul v-else class="space-y-4 mb-8">
         <li
-          v-for="s in stats.byService"
-          :key="s.serviceId"
-          class="flex justify-between items-center p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+          v-for="row in stats.newUsersByMonth"
+          :key="row.yearMonth"
+          class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] flex flex-col sm:flex-row items-start sm:items-center gap-4"
         >
-          <span class="font-medium">{{ s.serviceName }}</span>
-          <span class="text-[var(--tg-theme-hint-color,#999)]">{{ s.count }} записей</span>
+          <div class="min-w-0 flex-1">
+            <div class="font-medium mb-1">{{ formatMonth(row.yearMonth) }}</div>
+            <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+              Зарегистрировалось: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ row.registered }}</strong>
+              <span class="mx-2">·</span>
+              Сделали заказ: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ row.madeOrder }}</strong>
+            </div>
+          </div>
+          <div
+            class="shrink-0 w-24 h-24 rounded-full border-4 border-[var(--tg-theme-bg-color,#fff)]"
+            :style="{ background: newUsersPieGradient(row.registered, row.madeOrder) }"
+          />
+          <div class="flex flex-col gap-1 text-xs text-[var(--tg-theme-hint-color,#999)] shrink-0">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#22c55e]" />
+              Сделали заказ ({{ row.madeOrder }})
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#9ca3af]" />
+              Без заказа ({{ row.registered - row.madeOrder }})
+            </span>
+          </div>
         </li>
       </ul>
+
+      <h2 class="text-lg font-semibold mb-3">Записи по сервисам</h2>
+      <p v-if="!stats.byService?.length" class="text-sm text-[var(--tg-theme-hint-color,#999)]">Нет данных.</p>
+      <div v-else class="space-y-4">
+        <div
+          v-for="s in stats.byService"
+          :key="s.serviceId"
+          class="flex flex-col gap-1"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm font-medium min-w-0 truncate">{{ s.serviceName }}</span>
+            <span class="text-sm text-[var(--tg-theme-hint-color,#999)] shrink-0">{{ s.count }} записей</span>
+          </div>
+          <div class="h-7 rounded-lg overflow-hidden bg-[var(--tg-theme-section-separator-color,#e5e5e5)]/30">
+            <div
+              class="h-full rounded-lg bg-[var(--tg-theme-button-color,#3b82f6)] transition-[width] duration-300"
+              :style="{ width: `${(s.count / serviceChartMax) * 100}%` }"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Модальное окно: список записей по датам -->
+      <Teleport to="body">
+        <div
+          v-if="showAppointmentsModal"
+          class="fixed inset-0 z-[100] flex flex-col bg-black/50"
+          @click.self="closeAppointmentsModal"
+        >
+          <div class="flex-1 min-h-0 flex flex-col m-4 rounded-2xl bg-[var(--tg-theme-bg-color,#fff)] shadow-xl max-h-[85vh]">
+            <div class="flex items-center justify-between shrink-0 p-4 border-b border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+              <h3 class="text-lg font-semibold text-[var(--tg-theme-text-color,#000)]">Записи</h3>
+              <button
+                type="button"
+                class="p-2 rounded-lg hover:bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]"
+                aria-label="Закрыть"
+                @click="closeAppointmentsModal"
+              >
+                ✕
+              </button>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto p-4">
+              <div v-if="loadingAppointments" class="text-[var(--tg-theme-hint-color,#999)] py-8 text-center">Загрузка…</div>
+              <template v-else-if="!appointmentsByDate.length">
+                <p class="text-[var(--tg-theme-hint-color,#999)] py-4 text-center">Нет записей за выбранный период.</p>
+              </template>
+              <template v-else>
+                <div v-for="[dateStr, items] in appointmentsByDate" :key="dateStr" class="mb-6">
+                  <div class="text-center py-2 mb-3 text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] border-b border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                    ____ {{ formatDateHeader(dateStr) }} ____
+                  </div>
+                  <div class="space-y-3">
+                    <div
+                      v-for="a in items"
+                      :key="a.id"
+                      class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span class="font-medium text-[var(--tg-theme-text-color,#000)]">
+                          {{ (a.startTime || '').slice(0, 5) }}
+                        </span>
+                        <span
+                          class="text-xs font-medium px-2 py-0.5 rounded"
+                          :class="a.status === 'cancelled' ? 'bg-red-100 text-red-800' : a.status === 'done' ? 'bg-green-100 text-green-800' : 'bg-[var(--tg-theme-hint-color,#999)]/20 text-[var(--tg-theme-hint-color,#6b7280)]'"
+                        >
+                          {{ appointmentStatusLabel(a) }}
+                        </span>
+                      </div>
+                      <div class="text-sm text-[var(--tg-theme-hint-color,#6b7280)] space-y-1">
+                        <p v-if="a.service?.name">
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Услуга:</span> {{ a.service.name }}
+                        </p>
+                        <p v-else-if="a.serviceId" class="text-[var(--tg-theme-hint-color,#999)]">Услуга: —</p>
+                        <p v-else class="text-[var(--tg-theme-hint-color,#999)]">Для моделей</p>
+                        <p>
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Сумма:</span>
+                          <span class="font-medium text-[var(--tg-theme-text-color,#000)]">
+                            {{ appointmentDisplayPrice(a) != null ? formatMoney(appointmentDisplayPrice(a)) + ' €' : '—' }}
+                          </span>
+                        </p>
+                        <p v-if="a.feedback?.rating">
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Оценка:</span> {{ a.feedback.rating }} ★
+                        </p>
+                        <p v-if="appointmentNote(a)" class="mt-2 pt-2 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                          <span class="text-[var(--tg-theme-hint-color,#999)]">Примечание:</span> {{ appointmentNote(a) }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </template>
   </div>
 </template>

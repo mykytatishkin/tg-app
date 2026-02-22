@@ -41,14 +41,22 @@ export class AppointmentsController {
     return this.appointmentsService.getMine(req.user);
   }
 
+  @Get('my-stats')
+  getMyStats(@Request() req: { user: User }) {
+    return this.appointmentsService.getMyStats(req.user);
+  }
+
   @Get('profile')
   getMyProfile(@Request() req: { user: User }) {
     return this.appointmentsService.getMyProfile(req.user);
   }
 
   @Patch('profile')
-  updateMyProfile(@Request() req: { user: User }, @Body() body: { instagram?: string }) {
-    return this.appointmentsService.updateMyProfile(req.user, body?.instagram);
+  updateMyProfile(
+    @Request() req: { user: User },
+    @Body() body: { instagram?: string; favoriteDays?: number[]; favoriteTimeBuckets?: string[] },
+  ) {
+    return this.appointmentsService.updateMyProfile(req.user, body);
   }
 
   @Get('discount-slots')

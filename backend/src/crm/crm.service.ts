@@ -118,7 +118,7 @@ export class CrmService {
     const clients = await this.clientRepo.find({
       where: { masterId: In(masterIds) },
       order: { name: 'ASC' },
-      relations: ['appointments'],
+      relations: ['appointments', 'appointments.service'],
     });
     const masterIdToName =
       masterIds.length > 1
@@ -157,12 +157,18 @@ export class CrmService {
               return d < min ? d : min;
             }, new Date(8640000000000000))
           : null;
+      const doneAppts = (c.appointments || []).filter((a) => a.status === AppointmentStatus.DONE);
+      const ltv = doneAppts.reduce((sum, a) => {
+        const price = a.finalPrice != null ? Number(a.finalPrice) : (a.service?.price != null ? Number(a.service.price) : 0);
+        return sum + price;
+      }, 0);
       const { appointments: _, ...rest } = c;
       const item: Record<string, unknown> = {
         ...rest,
         visitCount: doneOrScheduled.length,
         lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
         firstVisitAt: firstVisit ? firstVisit.toISOString() : null,
+        ltv: Math.round(ltv * 100) / 100,
       };
       if (masterIdToName?.has(c.masterId)) item.masterName = masterIdToName.get(c.masterId);
       return item;
@@ -180,12 +186,14 @@ export class CrmService {
         notes: null,
         masterNickname: null,
         lastReminderSentAt: null,
+        noShowCount: 0,
         masterId: singleMasterId ?? masterIds[0],
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
         visitCount: 0,
         lastVisitAt: null,
         firstVisitAt: null,
+        ltv: 0,
       };
       if (singleMasterId && masterIdToName?.has(singleMasterId))
         item.masterName = masterIdToName.get(singleMasterId);
@@ -266,6 +274,7 @@ export class CrmService {
         notes: null,
         masterNickname: null,
         lastReminderSentAt: null,
+        noShowCount: 0,
         masterId,
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
@@ -275,6 +284,8 @@ export class CrmService {
           byService: [],
           favoriteWeekdays: [],
           favoriteTimeRanges: [],
+          ltv: 0,
+          ltvByService: [],
         },
         recentAppointments: [],
       };
@@ -333,12 +344,31 @@ export class CrmService {
       .slice(0, 2)
       .map(([bucket]) => ({ bucket, label: TIME_BUCKET_LABELS[bucket] ?? bucket }));
 
+    const doneAppts = (client.appointments || []).filter((a) => a.status === AppointmentStatus.DONE);
+    const ltv = doneAppts.reduce((sum, a) => {
+      const price = a.finalPrice != null ? Number(a.finalPrice) : (a.service?.price != null ? Number(a.service.price) : 0);
+      return sum + price;
+    }, 0);
+    const ltvByServiceMap = new Map<string, { serviceName: string; total: number }>();
+    for (const a of doneAppts) {
+      const sid = a.serviceId ?? '__none__';
+      const sName = (a as any).service?.name ?? 'Прочее';
+      const price = a.finalPrice != null ? Number(a.finalPrice) : (a.service?.price != null ? Number(a.service.price) : 0);
+      if (!ltvByServiceMap.has(sid)) ltvByServiceMap.set(sid, { serviceName: sName, total: 0 });
+      ltvByServiceMap.get(sid)!.total += price;
+    }
+    const ltvByService = Array.from(ltvByServiceMap.values())
+      .map((s) => ({ ...s, total: Math.round(s.total * 100) / 100 }))
+      .sort((a, b) => b.total - a.total);
+
     const stats = {
       totalVisits: doneOrScheduled.length,
       lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
       byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
       favoriteWeekdays: top2Weekdays,
       favoriteTimeRanges: top2TimeRanges,
+      ltv: Math.round(ltv * 100) / 100,
+      ltvByService,
     };
     const recentAppointments = sorted.slice(0, 30).map((a) => ({
       id: a.id,
@@ -678,6 +708,7 @@ export class CrmService {
       .createQueryBuilder('a')
       .leftJoinAndSelect('a.client', 'client')
       .leftJoinAndSelect('a.service', 'service')
+      .leftJoinAndSelect('a.feedback', 'feedback')
       .where('a.masterId IN (:...masterIds)', { masterIds })
       .orderBy('a.date', 'DESC')
       .addOrderBy('a.startTime', 'DESC');
@@ -849,6 +880,36 @@ export class CrmService {
 
     const clientsCount = await this.clientRepo.count({ where: { masterId: In(masterIds) } });
 
+    const allClientsForNewUsers = await this.clientRepo.find({
+      where: { masterId: In(masterIds) },
+      relations: ['appointments'],
+    });
+    const newUsersByMonthMap = new Map<string, { registered: number; madeOrder: number }>();
+    for (const c of allClientsForNewUsers) {
+      const createdAt = c.createdAt;
+      const yearMonth =
+        createdAt instanceof Date
+          ? `${createdAt.getFullYear()}-${String(createdAt.getMonth() + 1).padStart(2, '0')}`
+          : typeof createdAt === 'string'
+            ? (createdAt as string).slice(0, 7)
+            : null;
+      if (!yearMonth) continue;
+      if (year && yearMonth.slice(0, 4) !== year) continue;
+      if (month && yearMonth.slice(5, 7) !== month) continue;
+      if (!newUsersByMonthMap.has(yearMonth)) {
+        newUsersByMonthMap.set(yearMonth, { registered: 0, madeOrder: 0 });
+      }
+      const row = newUsersByMonthMap.get(yearMonth)!;
+      row.registered += 1;
+      const hasOrder = (c.appointments || []).some(
+        (a) => a.status === AppointmentStatus.DONE || a.status === AppointmentStatus.SCHEDULED,
+      );
+      if (hasOrder) row.madeOrder += 1;
+    }
+    const newUsersByMonth = Array.from(newUsersByMonthMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([yearMonth, row]) => ({ yearMonth, ...row }));
+
     const byMonthMap = new Map<
       string,
       { revenue: number; cost: number; appointmentCount: number }
@@ -928,6 +989,7 @@ export class CrmService {
       totalClients: clientsCount,
       byService: Array.from(byServiceMap.values()).sort((a, b) => b.count - a.count),
       byMonth,
+      newUsersByMonth,
       totals,
       feedbackCount,
       averageRating: averageRating != null ? Math.round(averageRating * 10) / 10 : null,

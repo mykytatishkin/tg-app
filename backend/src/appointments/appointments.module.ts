@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
 import { RemindersService } from './reminders.service';
+import { PostSessionService } from './post-session.service';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
@@ -22,6 +23,6 @@ import { BotModule } from '../bot/bot.module';
     BotModule,
   ],
   controllers: [AppointmentsController],
-  providers: [AppointmentsService, RemindersService],
+  providers: [AppointmentsService, RemindersService, PostSessionService],
 })
 export class AppointmentsModule {}

@@ -39,6 +39,10 @@ export class Client {
   @Column({ type: 'varchar', nullable: true })
   masterNickname: string | null;
 
+  /** Number of times client didn't show up without cancelling. */
+  @Column({ type: 'int', default: 0 })
+  noShowCount: number;
+
   /** Last time we sent "2 weeks since last visit" reminder (to avoid repeat spam). */
   @Column({ type: 'timestamp', nullable: true })
   lastReminderSentAt: Date | null;

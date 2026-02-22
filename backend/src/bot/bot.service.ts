@@ -16,14 +16,16 @@ import {
 } from './quick-test.state';
 import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
+import { Client } from '../crm/entities/client.entity';
 import { Suggestion, SUGGESTION_STATUS_LABELS, type SuggestionStatus } from '../suggestions/entities/suggestion.entity';
 import { User } from '../auth/entities/user.entity';
-import { parseDateTimeInVilnius } from '../shared/timezone.util';
+import { parseDateTimeInVilnius, formatDateTimeForNotification } from '../shared/timezone.util';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
 const DRINK_CB_PREFIX = 'drink_';
 const FEEDBACK_CB_PREFIX = 'feedback_';
+const PS_CB_PREFIX = 'ps_';
 
 export interface FeedbackSessionState {
   appointmentId: string;
@@ -100,6 +102,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private userRepo: Repository<User>,
     @InjectRepository(Suggestion)
     private suggestionRepo: Repository<Suggestion>,
+    @InjectRepository(Client)
+    private clientRepo: Repository<Client>,
   ) {}
 
   onModuleInit() {
@@ -268,6 +272,104 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       }
       await ctx.answerCbQuery();
       await this.saveFeedbackAndReply(ctx, state);
+    });
+
+    // ——— Post-session: «Вы завершили приём успешно?» ———
+    this.bot.action(/^ps_yes_(.+)$/, async (ctx) => {
+      const appointmentId = ctx.match[1];
+      await ctx.answerCbQuery();
+      const appt = await this.appointmentRepo.findOne({
+        where: { id: appointmentId },
+      });
+      if (!appt || appt.status !== AppointmentStatus.SCHEDULED) {
+        return ctx.reply('Запись не найдена или уже обработана.');
+      }
+      appt.status = AppointmentStatus.DONE;
+      await this.appointmentRepo.save(appt);
+      return ctx.reply('✅ Приём отмечен как завершённый.');
+    });
+
+    this.bot.action(/^ps_no_(.+)$/, async (ctx) => {
+      const appointmentId = ctx.match[1];
+      await ctx.answerCbQuery();
+      const appt = await this.appointmentRepo.findOne({
+        where: { id: appointmentId },
+      });
+      if (!appt || appt.status !== AppointmentStatus.SCHEDULED) {
+        return ctx.reply('Запись не найдена или уже обработана.');
+      }
+      return ctx.reply('Почему приём не состоялся?', {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: 'Перенос', callback_data: `ps_reason_${appointmentId}_reschedule` }],
+            [{ text: 'Отменено', callback_data: `ps_reason_${appointmentId}_cancel` }],
+            [{ text: 'Клиент не пришёл', callback_data: `ps_reason_${appointmentId}_noshow` }],
+          ],
+        },
+      });
+    });
+
+    this.bot.action(/^ps_reason_([^_]+)_(.+)$/, async (ctx) => {
+      const appointmentId = ctx.match[1];
+      const reason = ctx.match[2];
+      await ctx.answerCbQuery();
+
+      const appt = await this.appointmentRepo.findOne({
+        where: { id: appointmentId },
+        relations: ['client', 'client.master'],
+      });
+      if (!appt || appt.status !== AppointmentStatus.SCHEDULED) {
+        return ctx.reply('Запись не найдена или уже обработана.');
+      }
+
+      if (reason === 'reschedule') {
+        appt.status = AppointmentStatus.RESCHEDULED;
+        await this.appointmentRepo.save(appt);
+
+        const clientTgId = appt.client?.telegramId?.trim();
+        if (clientTgId) {
+          const appUrl = this.configService.get<string>('MINI_APP_URL');
+          if (appUrl) {
+            const bookUrl = `${appUrl.replace(/\/$/, '')}/appointments/book`;
+            await this.sendMessageWithWebAppButton(
+              clientTgId,
+              'Ваш мастер перенёс приём. Запишитесь заново:',
+              'Записаться',
+              bookUrl,
+            );
+          }
+        }
+        return ctx.reply('📅 Приём отмечен как перенесённый. Клиенту отправлена ссылка на запись.');
+      }
+
+      if (reason === 'cancel') {
+        appt.status = AppointmentStatus.CANCELLED;
+        appt.cancelledBy = 'master';
+        await this.appointmentRepo.save(appt);
+        return ctx.reply('❌ Приём отменён.');
+      }
+
+      if (reason === 'noshow') {
+        appt.status = AppointmentStatus.NO_SHOW;
+        await this.appointmentRepo.save(appt);
+
+        if (appt.client) {
+          const client = await this.clientRepo.findOne({
+            where: { id: appt.client.id },
+          });
+          if (client) {
+            client.noShowCount = (client.noShowCount ?? 0) + 1;
+            await this.clientRepo.save(client);
+            if (client.noShowCount > 2) {
+              return ctx.reply(
+                `⚠️ Клиент не пришёл. Пропусков: ${client.noShowCount}. Клиент помечен как ненадёжный.`,
+              );
+            }
+            return ctx.reply(`⚠️ Клиент не пришёл. Пропусков: ${client.noShowCount}.`);
+          }
+        }
+        return ctx.reply('⚠️ Клиент не пришёл.');
+      }
     });
 
     // Резервный обработчик для старой кнопки «Пройти тест»
@@ -496,6 +598,38 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return true;
     } catch (err) {
       console.error('Bot sendFeedbackRequest error:', err);
+      return false;
+    }
+  }
+
+  /** Post-session question: ask master if the appointment went well. */
+  async sendPostSessionQuestion(
+    masterChatId: string,
+    appointmentId: string,
+    clientName: string,
+    date: string | Date,
+    startTime: string,
+    serviceName: string | null,
+  ): Promise<boolean> {
+    if (!this.bot) return false;
+    try {
+      const dateTimeStr = formatDateTimeForNotification(date, startTime);
+      const servicePart = serviceName ? `, ${escapeHtml(serviceName)}` : '';
+      const text = `Приём ${dateTimeStr}${servicePart}, клиент: ${escapeHtml(clientName)}.\n\nВы завершили приём успешно?`;
+      await this.bot.telegram.sendMessage(masterChatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: 'Да', callback_data: `ps_yes_${appointmentId}` },
+              { text: 'Нет', callback_data: `ps_no_${appointmentId}` },
+            ],
+          ],
+        },
+      });
+      return true;
+    } catch (err) {
+      console.error('Bot sendPostSessionQuestion error:', err);
       return false;
     }
   }

@@ -18,6 +18,8 @@ export enum AppointmentStatus {
   SCHEDULED = 'scheduled',
   DONE = 'done',
   CANCELLED = 'cancelled',
+  NO_SHOW = 'no_show',
+  RESCHEDULED = 'rescheduled',
 }
 
 export enum AppointmentSource {
@@ -116,6 +118,10 @@ export class Appointment {
   /** Кто отменил: client | master. */
   @Column({ type: 'varchar', nullable: true })
   cancelledBy: 'client' | 'master' | null;
+
+  /** When post-session question was sent to master (to avoid duplicates). */
+  @Column({ type: 'timestamp', nullable: true })
+  postSessionSentAt: Date | null;
 
   @OneToOne(() => AppointmentFeedback, (fb) => fb.appointment, { nullable: true })
   feedback: AppointmentFeedback | null;

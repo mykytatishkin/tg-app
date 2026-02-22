@@ -22,18 +22,59 @@ const error = ref(null);
 const updatingUserId = ref(null); // id пользователя, у которого меняем роли
 /** Фильтр списка пользователей: 'all' | 'admin' | 'master' */
 const roleFilter = ref('all');
+const userSearch = ref('');
+const userSort = ref('name'); // 'name' | 'adminsFirst' | 'mastersFirst'
 
 const selectedMasterName = ref('');
 const clientSearch = ref('');
 const clientSort = ref('lastVisit'); // 'lastVisit' | 'firstVisit' | 'name'
+/** Фильтр списка: 'all' | 'clients' (с заказами) | 'users' (без заказов) */
+const clientTypeFilter = ref('all');
 let searchDebounce = null;
 
-const filteredUsers = computed(() => {
-  if (roleFilter.value === 'all') return allUsers.value;
-  if (roleFilter.value === 'admin') return allUsers.value.filter((u) => u.isAdmin);
-  if (roleFilter.value === 'master') return allUsers.value.filter((u) => u.isMaster);
-  return allUsers.value;
+function isClient(c) {
+  return (c.visitCount ?? 0) > 0 || !!c.firstVisitAt;
+}
+
+const totalUsersCount = computed(() => clients.value.length);
+const clientsCount = computed(() => clients.value.filter(isClient).length);
+const noOrderCount = computed(() => clients.value.filter((c) => !isClient(c)).length);
+
+const filteredClients = computed(() => {
+  const list = clients.value;
+  if (clientTypeFilter.value === 'clients') return list.filter(isClient);
+  if (clientTypeFilter.value === 'users') return list.filter((c) => !isClient(c)); // Без заказов
+  return list;
 });
+
+const filteredUsers = computed(() => {
+  let list = allUsers.value;
+  if (roleFilter.value === 'admin') list = list.filter((u) => u.isAdmin);
+  else if (roleFilter.value === 'master') list = list.filter((u) => u.isMaster);
+  const q = userSearch.value.trim().toLowerCase();
+  if (q) {
+    list = list.filter((u) => {
+      const name = userDisplayName(u).toLowerCase();
+      const username = (u.username ?? '').toLowerCase();
+      return name.includes(q) || (q.startsWith('@') ? username.includes(q.slice(1)) : username.includes(q));
+    });
+  }
+  const sortBy = userSort.value;
+  return [...list].sort((a, b) => {
+    if (sortBy === 'adminsFirst') {
+      if (a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+      if (a.isMaster !== b.isMaster) return a.isMaster ? -1 : 1;
+    } else if (sortBy === 'mastersFirst') {
+      if (a.isMaster !== b.isMaster) return a.isMaster ? -1 : 1;
+      if (a.isAdmin !== b.isAdmin) return a.isAdmin ? -1 : 1;
+    }
+    return userDisplayName(a).localeCompare(userDisplayName(b), 'ru');
+  });
+});
+
+const registeredCount = computed(() => allUsers.value.length);
+const mastersCount = computed(() => allUsers.value.filter((u) => u.isMaster).length);
+const adminsCount = computed(() => allUsers.value.filter((u) => u.isAdmin).length);
 
 async function loadAllUsers() {
   loading.value = true;
@@ -160,7 +201,34 @@ watch([masterId, isAdmin], load);
 
     <!-- Админ: список всех пользователей с фильтром, бейджами и тумблерами -->
     <template v-else-if="isAdmin && !masterId">
+      <div class="flex flex-wrap items-center gap-3 mb-3 text-sm text-[var(--tg-theme-hint-color,#6b7280)]">
+        <span>Зарегистрировано: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ registeredCount }}</strong></span>
+        <span>·</span>
+        <span>Мастеров: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ mastersCount }}</strong></span>
+        <span>·</span>
+        <span>Админов: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ adminsCount }}</strong></span>
+      </div>
       <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">Нажмите на мастера — откроются его клиенты. Роли включайте/выключайте тумблерами ниже.</p>
+      <div class="mb-4 space-y-3">
+        <input
+          v-model="userSearch"
+          type="search"
+          placeholder="Поиск по имени или нику…"
+          class="w-full p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] placeholder-[var(--tg-theme-hint-color,#999)]"
+        >
+        <div class="flex items-center gap-3">
+          <label for="user-sort" class="text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] shrink-0">Сортировка</label>
+          <select
+            id="user-sort"
+            v-model="userSort"
+            class="flex-1 min-w-0 p-3 pr-10 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] text-sm cursor-pointer"
+          >
+            <option value="name">По алфавиту</option>
+            <option value="adminsFirst">Сначала админы</option>
+            <option value="mastersFirst">Сначала мастера</option>
+          </select>
+        </div>
+      </div>
       <div class="flex gap-2 mb-4 flex-wrap">
         <button
           type="button"
@@ -232,6 +300,39 @@ watch([masterId, isAdmin], load);
 
     <!-- Список клиентов (мастер или админ с выбранным мастером) -->
     <div v-else>
+      <div class="flex flex-wrap items-center gap-3 mb-3 text-sm text-[var(--tg-theme-hint-color,#6b7280)]">
+        <span>Пользователей: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ totalUsersCount }}</strong></span>
+        <span>·</span>
+        <span>Клиентов: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ clientsCount }}</strong></span>
+        <span>·</span>
+        <span>Без заказов: <strong class="text-[var(--tg-theme-text-color,#000)]">{{ noOrderCount }}</strong></span>
+      </div>
+      <div class="flex gap-2 mb-3 flex-wrap">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          :class="clientTypeFilter === 'all' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="clientTypeFilter = 'all'"
+        >
+          Все
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          :class="clientTypeFilter === 'clients' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="clientTypeFilter = 'clients'"
+        >
+          Клиенты
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          :class="clientTypeFilter === 'users' ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]'"
+          @click="clientTypeFilter = 'users'"
+        >
+          Без заказов
+        </button>
+      </div>
       <div class="mb-4 space-y-3">
         <input
           v-model="clientSearch"
@@ -256,18 +357,40 @@ watch([masterId, isAdmin], load);
       </div>
       <ul class="space-y-3">
       <li
-        v-for="c in clients"
+        v-for="c in filteredClients"
         :key="c.id"
         class="p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] active:opacity-90"
         @click="goToClient(c.id)"
       >
-        <div class="font-medium">{{ c.name }}</div>
-        <div v-if="c.masterNickname" class="text-xs text-[var(--tg-theme-hint-color,#999)] italic">Свой ник: {{ c.masterNickname }}</div>
-        <div v-if="c.phone" class="text-sm text-[var(--tg-theme-hint-color,#999)]">{{ c.phone }}</div>
-        <div v-if="c.username" class="text-sm text-[var(--tg-theme-hint-color,#999)]">@{{ c.username }}</div>
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <div class="font-medium">{{ c.name }}</div>
+            <div v-if="c.masterNickname" class="text-xs text-[var(--tg-theme-hint-color,#999)] italic">Свой ник: {{ c.masterNickname }}</div>
+            <div v-if="c.phone" class="text-sm text-[var(--tg-theme-hint-color,#999)]">{{ c.phone }}</div>
+            <div v-if="c.username" class="text-sm text-[var(--tg-theme-hint-color,#999)]">@{{ c.username }}</div>
+          </div>
+          <div class="shrink-0 flex flex-col items-end gap-1">
+            <span
+              class="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+              :class="isClient(c) ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-hint-color,#999)]/20 text-[var(--tg-theme-hint-color,#6b7280)]'"
+            >
+              {{ isClient(c) ? 'Клиент' : 'Без заказов' }}
+            </span>
+            <span
+              v-if="(c.noShowCount ?? 0) > 2"
+              class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-red-500/15 text-red-600"
+            >
+              Ненадёжный ({{ c.noShowCount }})
+            </span>
+          </div>
+        </div>
         <div class="text-sm mt-2 text-[var(--tg-theme-hint-color,#999)]">
           {{ c.visitCount ?? 0 }} записей
           <span v-if="c.lastVisitAt"> · последняя {{ formatLastVisit(c.lastVisitAt) }}</span>
+          <span v-if="(c.noShowCount ?? 0) > 0" class="text-red-500"> · пропусков: {{ c.noShowCount }}</span>
+        </div>
+        <div v-if="(c.ltv ?? 0) > 0" class="text-sm mt-1 font-medium text-[var(--tg-theme-button-color,#1a1a1a)]">
+          LTV: {{ c.ltv.toFixed(2) }} €
         </div>
       </li>
     </ul>

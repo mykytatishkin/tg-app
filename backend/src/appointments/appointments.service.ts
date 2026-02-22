@@ -8,6 +8,7 @@ import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entiti
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { BotService } from '../bot/bot.service';
+import { getTodayInVilnius, parseDateTimeInVilnius } from '../shared/timezone.util';
 
 @Injectable()
 export class AppointmentsService {
@@ -128,23 +129,98 @@ export class AppointmentsService {
   }
 
   /** Get current user's client profile (for editing instagram etc.). Returns null if no client record. */
-  async getMyProfile(user: User): Promise<{ name: string; instagram: string | null } | null> {
+  async getMyProfile(user: User) {
     const clientIds = await this.getMyClientIds(user);
     if (clientIds.length === 0) return null;
     const client = await this.clientRepo.findOne({
       where: { id: clientIds[0] },
       select: ['name', 'instagram'],
     });
-    return client ? { name: client.name, instagram: client.instagram ?? null } : null;
+    if (!client) return null;
+    const freshUser = await this.userRepo.findOne({ where: { id: user.id } });
+    return {
+      name: client.name,
+      instagram: client.instagram ?? null,
+      favoriteDays: freshUser?.favoriteDays ?? null,
+      favoriteTimeBuckets: freshUser?.favoriteTimeBuckets ?? null,
+    };
   }
 
-  /** Update current user's instagram in all linked client records. */
-  async updateMyProfile(user: User, instagram: string | undefined): Promise<{ name: string; instagram: string | null } | null> {
+  /** Client-side stats: total spent per master + per service. */
+  async getMyStats(user: User) {
+    const clients = await this.clientRepo.find({
+      where: { telegramId: user.telegramId },
+      relations: ['appointments', 'appointments.service', 'master'],
+    });
+    if (clients.length === 0) return { totalSpent: 0, byMaster: [] };
+
+    let totalSpent = 0;
+    const byMaster: {
+      masterName: string;
+      totalSpent: number;
+      appointmentCount: number;
+      byService: { name: string; total: number }[];
+    }[] = [];
+
+    for (const c of clients) {
+      const doneAppts = (c.appointments || []).filter(
+        (a) => a.status === AppointmentStatus.DONE,
+      );
+      let masterTotal = 0;
+      const svcMap = new Map<string, { name: string; total: number }>();
+      for (const a of doneAppts) {
+        const price =
+          a.finalPrice != null
+            ? Number(a.finalPrice)
+            : a.service?.price != null
+              ? Number(a.service.price)
+              : 0;
+        masterTotal += price;
+        const sName = a.service?.name ?? 'Прочее';
+        const sid = a.serviceId ?? '__none__';
+        if (!svcMap.has(sid)) svcMap.set(sid, { name: sName, total: 0 });
+        svcMap.get(sid)!.total += price;
+      }
+      totalSpent += masterTotal;
+      const masterName = c.master
+        ? [c.master.firstName, c.master.lastName].filter(Boolean).join(' ').trim() || 'Мастер'
+        : 'Мастер';
+      byMaster.push({
+        masterName,
+        totalSpent: Math.round(masterTotal * 100) / 100,
+        appointmentCount: doneAppts.length,
+        byService: Array.from(svcMap.values())
+          .map((s) => ({ ...s, total: Math.round(s.total * 100) / 100 }))
+          .sort((a, b) => b.total - a.total),
+      });
+    }
+
+    return {
+      totalSpent: Math.round(totalSpent * 100) / 100,
+      byMaster: byMaster.sort((a, b) => b.totalSpent - a.totalSpent),
+    };
+  }
+
+  /** Update current user's profile: instagram + favorite days/time. */
+  async updateMyProfile(
+    user: User,
+    body: { instagram?: string; favoriteDays?: number[]; favoriteTimeBuckets?: string[] },
+  ) {
     const clientIds = await this.getMyClientIds(user);
     if (clientIds.length === 0) return null;
-    const value = instagram === undefined ? undefined : (typeof instagram === 'string' ? instagram.trim() || null : null);
-    if (value !== undefined) {
-      await this.clientRepo.update({ id: In(clientIds) }, { instagram: value });
+    const igValue = body.instagram === undefined ? undefined : (typeof body.instagram === 'string' ? body.instagram.trim() || null : null);
+    if (igValue !== undefined) {
+      await this.clientRepo.update({ id: In(clientIds) }, { instagram: igValue });
+    }
+    const userUpdate: Partial<User> = {};
+    if (body.favoriteDays !== undefined) {
+      userUpdate.favoriteDays = Array.isArray(body.favoriteDays) ? body.favoriteDays : null;
+    }
+    if (body.favoriteTimeBuckets !== undefined) {
+      userUpdate.favoriteTimeBuckets = Array.isArray(body.favoriteTimeBuckets) ? body.favoriteTimeBuckets : null;
+    }
+    if (Object.keys(userUpdate).length > 0) {
+      await this.userRepo.update({ id: user.id }, userUpdate);
     }
     return this.getMyProfile(user);
   }
@@ -187,6 +263,9 @@ export class AppointmentsService {
 
     const duration = service.durationMinutes;
     const freeSlots: { startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[] = [];
+    const now = new Date();
+    const todayStr = getTodayInVilnius();
+    const isToday = date === todayStr;
 
     for (const slot of slots) {
       if (slot.forModels) continue;
@@ -199,6 +278,11 @@ export class AppointmentsService {
       while (currentMin + duration <= slotEndMin) {
         const slotStart = this.fromMinutes(currentMin);
         const slotEnd = this.fromMinutes(currentMin + duration);
+
+        if (isToday && parseDateTimeInVilnius(date, slotStart) <= now) {
+          currentMin += 30;
+          continue;
+        }
 
         const overlaps = booked.some((a) => {
           const aDuration = a.service?.durationMinutes ?? 60;
@@ -262,12 +346,16 @@ export class AppointmentsService {
       .getRawMany()
       .then((rows) => new Set(rows.map((r) => r.a_slotId).filter(Boolean)));
 
+    const now = new Date();
+    const todayStr = getTodayInVilnius();
     const result: { date: string; startTime: string; endTime: string; slotId: string; priceModifier?: number | null; serviceId?: string; serviceName?: string }[] = [];
     for (const slot of slots) {
       const slotDateNorm = this.toDateOnly(slot.date);
       if (slotDateNorm < fromNorm || slotDateNorm > toNorm) continue;
+      if (slotDateNorm < todayStr) continue;
+      if (slotDateNorm === todayStr && parseDateTimeInVilnius(slotDateNorm, slot.startTime) <= now) continue;
       if (bookedSlotIds.has(slot.id)) continue;
-      if (!slot.serviceId) continue; // Only show slots with service (master's choice)
+      if (!slot.serviceId) continue;
       const modifier = slot.priceModifier != null ? Number(slot.priceModifier) : null;
       const service = slot.service;
       result.push({
@@ -321,7 +409,9 @@ export class AppointmentsService {
     });
     if (!service) throw new BadRequestException('Service not found');
 
-    const from = new Date(fromDate);
+    const todayStr = getTodayInVilnius();
+    const effectiveFrom = fromDate < todayStr ? todayStr : fromDate;
+    const from = new Date(effectiveFrom);
     const to = new Date(toDate);
     if (from > to) return [];
 
@@ -441,7 +531,10 @@ export class AppointmentsService {
         ? `@${clientUsername}`
         : this.escapeHtml(clientName);
     const servicePart = serviceName ? `, ${this.escapeHtml(serviceName)}` : '';
-    const text = `📅 Новая запись: ${dateStr} ${timeStr}${servicePart}. Клиент: ${mention}`;
+    const noShowPart = (client.noShowCount ?? 0) > 0
+      ? `\n⚠️ Пропусков без отмены: ${client.noShowCount}${client.noShowCount > 2 ? ' (ненадёжный клиент)' : ''}`
+      : '';
+    const text = `📅 Новая запись: ${dateStr} ${timeStr}${servicePart}. Клиент: ${mention}${noShowPart}`;
     const sent = await this.botService.sendMessage(masterTgId, text);
     if (!sent) {
       console.warn(`[notifyMasterOnNewBooking] Failed to send Telegram message to master chat_id=${masterTgId}. Check logs above for Bot sendMessage error.`);

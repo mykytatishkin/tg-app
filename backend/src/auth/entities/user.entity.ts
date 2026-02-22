@@ -55,6 +55,14 @@ export class User {
   @Column({ type: 'json', nullable: true })
   feedbackOptions: string[] | null;
 
+  /** Client's preferred weekdays (0=Sun..6=Sat), set manually in profile. */
+  @Column({ type: 'json', nullable: true })
+  favoriteDays: number[] | null;
+
+  /** Client's preferred time buckets ('morning'|'afternoon'|'evening'), set manually in profile. */
+  @Column({ type: 'json', nullable: true })
+  favoriteTimeBuckets: string[] | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

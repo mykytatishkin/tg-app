@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { Appointment, AppointmentStatus } from './entities/appointment.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
+import { User } from '../auth/entities/user.entity';
 import { BotService } from '../bot/bot.service';
 import { getTodayInVilnius } from '../shared/timezone.util';
 
@@ -55,6 +56,8 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     private appointmentRepo: Repository<Appointment>,
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     private botService: BotService,
     private configService: ConfigService,
   ) {}
@@ -142,22 +145,37 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
 
     const todayStr = getTodayInVilnius();
 
-    const pastAppointments = await this.appointmentRepo
-      .createQueryBuilder('a')
-      .select('a.date', 'date')
-      .addSelect('a.startTime', 'startTime')
-      .where('a.clientId = :clientId', { clientId: client.id })
-      .andWhere('a.status = :status', { status: AppointmentStatus.DONE })
-      .orderBy('a.date', 'DESC')
-      .limit(20)
-      .getRawMany();
+    // Check user's manual preferences first
+    const user = client.telegramId
+      ? await this.userRepo.findOne({ where: { telegramId: client.telegramId } })
+      : null;
+    const manualDays = Array.isArray(user?.favoriteDays) && user.favoriteDays.length > 0 ? user.favoriteDays : null;
+    const manualBuckets = Array.isArray(user?.favoriteTimeBuckets) && user.favoriteTimeBuckets.length > 0
+      ? (user.favoriteTimeBuckets as TimeBucket[])
+      : null;
 
     const preferredWeekdays = new Set<number>();
     const preferredTimeBuckets = new Set<TimeBucket>();
-    for (const a of pastAppointments) {
-      const dStr = typeof a.date === 'string' ? a.date : (a.date as Date)?.toISOString?.()?.slice(0, 10);
-      if (dStr) preferredWeekdays.add(new Date(dStr + 'T12:00:00').getDay());
-      if (a.startTime) preferredTimeBuckets.add(getTimeBucket(String(a.startTime)));
+
+    if (manualDays || manualBuckets) {
+      if (manualDays) manualDays.forEach((d) => preferredWeekdays.add(d));
+      if (manualBuckets) manualBuckets.forEach((b) => preferredTimeBuckets.add(b));
+    } else {
+      const pastAppointments = await this.appointmentRepo
+        .createQueryBuilder('a')
+        .select('a.date', 'date')
+        .addSelect('a.startTime', 'startTime')
+        .where('a.clientId = :clientId', { clientId: client.id })
+        .andWhere('a.status = :status', { status: AppointmentStatus.DONE })
+        .orderBy('a.date', 'DESC')
+        .limit(20)
+        .getRawMany();
+
+      for (const a of pastAppointments) {
+        const dStr = typeof a.date === 'string' ? a.date : (a.date as Date)?.toISOString?.()?.slice(0, 10);
+        if (dStr) preferredWeekdays.add(new Date(dStr + 'T12:00:00').getDay());
+        if (a.startTime) preferredTimeBuckets.add(getTimeBucket(String(a.startTime)));
+      }
     }
 
     const toDate = new Date();

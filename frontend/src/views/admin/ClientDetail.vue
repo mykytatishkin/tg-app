@@ -151,6 +151,14 @@ onMounted(load);
               <span class="text-[var(--tg-theme-hint-color,#999)] ml-1">Instagram</span>
             </div>
             <div v-if="client.notes" class="text-sm mt-2 whitespace-pre-wrap">{{ client.notes }}</div>
+            <div v-if="(client.noShowCount ?? 0) > 0" class="mt-2">
+              <span
+                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                :class="client.noShowCount > 2 ? 'bg-red-500/15 text-red-600' : 'bg-yellow-500/15 text-yellow-600'"
+              >
+                {{ client.noShowCount > 2 ? 'Ненадёжный' : 'Пропуски' }}: {{ client.noShowCount }}
+              </span>
+            </div>
           </div>
           <button
             v-if="!editing"
@@ -220,11 +228,27 @@ onMounted(load);
         </div>
       </form>
 
+      <!-- Unreliable badge -->
+      <div v-if="(client.noShowCount ?? 0) > 2" class="mb-4 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/30">
+        <span class="text-red-600 font-medium text-sm">⚠️ Ненадёжный клиент — пропусков: {{ client.noShowCount }}</span>
+      </div>
+      <div v-else-if="(client.noShowCount ?? 0) > 0" class="mb-4 px-4 py-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]">
+        <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Пропусков без отмены: {{ client.noShowCount }}</span>
+      </div>
+
       <div v-if="client.stats" class="mb-6">
         <h2 class="text-lg font-semibold mb-3">Статистика посещений</h2>
         <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-3">
-          <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Всего визитов</div>
-          <div class="text-2xl font-semibold">{{ client.stats.totalVisits }}</div>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Всего визитов</div>
+              <div class="text-2xl font-semibold">{{ client.stats.totalVisits }}</div>
+            </div>
+            <div v-if="(client.stats.ltv ?? 0) > 0" class="text-right">
+              <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">Потрачено в сумме</div>
+              <div class="text-2xl font-semibold text-[var(--tg-theme-button-color,#1a1a1a)]">{{ client.stats.ltv.toFixed(2) }} €</div>
+            </div>
+          </div>
           <div v-if="client.stats.lastVisitAt" class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">
             Последний визит: {{ formatDate(client.stats.lastVisitAt) }}
           </div>
@@ -255,6 +279,19 @@ onMounted(load);
           </ul>
         </div>
         <p v-else class="text-sm text-[var(--tg-theme-hint-color,#999)]">Нет записей по сервисам.</p>
+        <div v-if="client.stats.ltvByService?.length" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mt-3">
+          <div class="text-sm font-medium mb-2">Сколько потратил — по услугам</div>
+          <ul class="space-y-2">
+            <li
+              v-for="s in client.stats.ltvByService"
+              :key="s.serviceName"
+              class="flex justify-between text-sm"
+            >
+              <span>{{ s.serviceName }}</span>
+              <span class="font-medium">{{ s.total.toFixed(2) }} €</span>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <div v-if="client.recentAppointments?.length" class="mb-6">
