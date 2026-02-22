@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
@@ -51,6 +51,20 @@ const submitting = ref(false);
 const deletingId = ref(null);
 const lastAdded = ref(null);
 const editingSlotId = ref(null);
+
+const hidePastSlots = ref(true);
+const showOnlyUnbooked = ref(false);
+
+const filteredSlots = computed(() => {
+  let list = slots.value;
+  if (hidePastSlots.value) {
+    list = list.filter((s) => getSlotDateClass(s.date) !== 'past');
+  }
+  if (showOnlyUnbooked.value) {
+    list = list.filter((s) => getSlotDateClass(s.date) !== 'past' && !s.isBooked);
+  }
+  return list;
+});
 
 async function load() {
   if (isAdmin.value && masters.value.length && !selectedMasterId.value) return;
@@ -216,6 +230,14 @@ async function removeSlot(id) {
   }
 }
 
+function goToAppointment(slot) {
+  if (!slot.appointmentId) return;
+  hapticFeedback?.('light');
+  const query = { from: 'availability' };
+  if (isAdmin.value && selectedMasterId.value) query.masterId = selectedMasterId.value;
+  router.push({ name: 'AdminAppointmentDetail', params: { id: slot.appointmentId }, query });
+}
+
 function goBack() {
   hapticFeedback?.('light');
   if (isAdmin.value && selectedMasterId.value) {
@@ -369,29 +391,38 @@ watch(selectedMasterId, load);
 
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
-    <ul v-else class="space-y-3">
+    <div v-else class="mb-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-2">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input v-model="hidePastSlots" type="checkbox" class="rounded">
+        <span class="text-sm">Не показывать прошедшие слоты</span>
+      </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input v-model="showOnlyUnbooked" type="checkbox" class="rounded">
+        <span class="text-sm">Не занятые слоты</span>
+      </label>
+    </div>
+
+    <ul v-if="!loading" class="space-y-3">
       <li
-        v-for="s in slots"
+        v-for="s in filteredSlots"
         :key="s.id"
         class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
         :class="[
           'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
-          { 'opacity-60': s.isBooked },
+          { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
           getSlotDateClass(s.date) === 'past' && 'border-red-500',
           getSlotDateClass(s.date) === 'soon' && 'border-green-500',
           getSlotDateClass(s.date) == null && 'border-transparent'
         ]"
+        @click="s.isBooked && s.appointmentId && goToAppointment(s)"
       >
         <div>
           <div class="font-medium">{{ s.date }}</div>
           <div class="text-sm text-[var(--tg-theme-hint-color,#999)]">
-            {{ (s.startTime || '').slice(0, 5) }} – {{ (s.endTime || '').slice(0, 5) }}
+            {{ (s.startTime || '').slice(0, 5) }} – {{ (s.endTime || '').slice(0, 5) }}<template v-if="s.isBooked && s.bookedBy"> — {{ s.bookedBy }}</template>
             <span v-if="s.forModels" class="text-neutral-400 font-medium">Для моделей</span>
             <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
-            </span>
-            <span v-if="s.isBooked" class="font-medium text-[var(--tg-theme-hint-color,#999)]">
-              — Занят<template v-if="s.bookedBy">: {{ s.bookedBy }}</template>
             </span>
             <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
           </div>

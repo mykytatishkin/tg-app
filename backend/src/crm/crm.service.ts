@@ -524,10 +524,11 @@ export class CrmService {
     if (to) qb.andWhere('slot.date <= :to', { to });
     const slots = await qb.getMany();
 
-    const fromDate = from ?? slots[0]?.date;
-    const toDate = to ?? slots[slots.length - 1]?.date;
+    // Slots are ordered date DESC, so slots[0] is newest, slots[length-1] is oldest
+    const fromDate = from ?? slots[slots.length - 1]?.date;
+    const toDate = to ?? slots[0]?.date;
     if (slots.length === 0 || !fromDate || !toDate) {
-      return slots.map((s) => ({ ...s, isBooked: false, bookedBy: null as string | null }));
+      return slots.map((s) => ({ ...s, isBooked: false, bookedBy: null as string | null, appointmentId: null as string | null }));
     }
 
     const appointments = await this.appointmentRepo.find({
@@ -551,15 +552,17 @@ export class CrmService {
     return slots.map((slot) => {
       const slotDate = typeof slot.date === 'string' ? slot.date : (slot.date as Date).toISOString().slice(0, 10);
       if (slotDate < fromDate || slotDate > toDate) {
-        return { ...slot, isBooked: false, bookedBy: null as string | null };
+        return { ...slot, isBooked: false, bookedBy: null as string | null, appointmentId: null as string | null };
       }
       let isBooked = false;
       let bookedBy: string | null = null;
+      let appointmentId: string | null = null;
       if (slot.forModels) {
         const booking = appointments.find((a) => a.slotId === slot.id);
         if (booking) {
           isBooked = true;
           bookedBy = booking.client?.name?.trim() ?? 'Клиент';
+          appointmentId = booking.id;
         }
       } else {
         const slotStart = toMinutes(slot.startTime);
@@ -568,6 +571,7 @@ export class CrmService {
           if (a.masterId !== slot.masterId) return false;
           const aDate = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
           if (aDate !== slotDate) return false;
+          if (a.slotId === slot.id) return true;
           const duration = a.service?.durationMinutes ?? 60;
           const aStart = toMinutes(a.startTime);
           const aEnd = aStart + duration;
@@ -576,9 +580,10 @@ export class CrmService {
         if (booking) {
           isBooked = true;
           bookedBy = booking.client?.name?.trim() ?? 'Клиент';
+          appointmentId = booking.id;
         }
       }
-      return { ...slot, isBooked, bookedBy };
+      return { ...slot, isBooked, bookedBy, appointmentId };
     });
   }
 
