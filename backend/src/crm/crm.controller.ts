@@ -38,8 +38,17 @@ export class CrmController {
   getClients(
     @Request() req: { user: User },
     @Query('masterId') masterId?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
   ) {
-    return this.crmService.getClients(req.user, masterId || undefined);
+    const sortOption =
+      sort === 'lastVisit' || sort === 'firstVisit' || sort === 'name' ? sort : undefined;
+    return this.crmService.getClients(
+      req.user,
+      masterId || undefined,
+      search?.trim() || undefined,
+      sortOption,
+    );
   }
 
   @Post('clients')

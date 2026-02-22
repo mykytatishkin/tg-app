@@ -434,7 +434,12 @@ export class AppointmentsService {
     const timeStr = (appointment.startTime || '').slice(0, 5);
     const clientName = client.name ?? 'Клиент';
     const clientUsername = client.username?.trim();
-    const mention = clientUsername ? `@${clientUsername}` : this.escapeHtml(clientName);
+    const clientTgId = client.telegramId?.trim();
+    const mention = clientTgId
+      ? `<a href="tg://user?id=${clientTgId}">${this.escapeHtml(clientName)}</a>`
+      : clientUsername
+        ? `@${clientUsername}`
+        : this.escapeHtml(clientName);
     const servicePart = serviceName ? `, ${this.escapeHtml(serviceName)}` : '';
     const text = `📅 Новая запись: ${dateStr} ${timeStr}${servicePart}. Клиент: ${mention}`;
     const sent = await this.botService.sendMessage(masterTgId, text);
@@ -512,9 +517,14 @@ export class AppointmentsService {
       const timeStr = (appointment.startTime || '').slice(0, 5);
       const clientName = appointment.client?.name ?? 'Клиент';
       const clientUsername = appointment.client?.username?.trim();
-      const mention = clientUsername ? `@${clientUsername}` : clientName;
+      const clientTgId = appointment.client?.telegramId?.trim();
+      const mention = clientTgId
+        ? `<a href="tg://user?id=${clientTgId}">${this.escapeHtml(clientName)}</a>`
+        : clientUsername
+          ? `@${clientUsername}`
+          : this.escapeHtml(clientName);
       const serviceName = appointment.service?.name ?? '';
-      const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}. Клиент: ${mention}. Причина: ${reasonText}`;
+      const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${this.escapeHtml(serviceName)}` : ''}. Клиент: ${mention}. Причина: ${this.escapeHtml(reasonText)}`;
       await this.botService.sendMessage(masterTgId, text);
     }
 

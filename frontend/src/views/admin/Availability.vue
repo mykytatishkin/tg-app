@@ -19,6 +19,24 @@ function getDefaultEndTime(startTime) {
   return addHoursToTime(startTime, DEFAULT_DURATION_HOURS);
 }
 
+/** 'past' = дата раньше сегодня → красный, 'soon' = в ближайшие 3 дня (включительно) → зелёный, иначе без подсветки */
+function getSlotDateClass(dateStr) {
+  if (!dateStr) return null;
+  const y = (d) => d.getFullYear();
+  const m = (d) => String(d.getMonth() + 1).padStart(2, '0');
+  const day = (d) => String(d.getDate()).padStart(2, '0');
+  const toStr = (d) => `${y(d)}-${m(d)}-${day(d)}`;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = toStr(today);
+  if (dateStr < todayStr) return 'past';
+  const in3Days = new Date(today);
+  in3Days.setDate(in3Days.getDate() + 2);
+  const in3DaysStr = toStr(in3Days);
+  if (dateStr <= in3DaysStr) return 'soon';
+  return null;
+}
+
 const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = useAdminMasters();
@@ -355,8 +373,14 @@ watch(selectedMasterId, load);
       <li
         v-for="s in slots"
         :key="s.id"
-        class="p-4 rounded-xl flex flex-col gap-3 transition-opacity"
-        :class="['bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]', { 'opacity-50': s.isBooked }]"
+        class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
+        :class="[
+          'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
+          { 'opacity-60': s.isBooked },
+          getSlotDateClass(s.date) === 'past' && 'border-red-500',
+          getSlotDateClass(s.date) === 'soon' && 'border-green-500',
+          getSlotDateClass(s.date) == null && 'border-transparent'
+        ]"
       >
         <div>
           <div class="font-medium">{{ s.date }}</div>
@@ -366,7 +390,9 @@ watch(selectedMasterId, load);
             <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
               {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
             </span>
-            <span v-if="s.isBooked" class="font-medium text-[var(--tg-theme-hint-color,#999)]"> — Занят</span>
+            <span v-if="s.isBooked" class="font-medium text-[var(--tg-theme-hint-color,#999)]">
+              — Занят<template v-if="s.bookedBy">: {{ s.bookedBy }}</template>
+            </span>
             <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
           </div>
           <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">

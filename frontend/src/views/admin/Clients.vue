@@ -24,6 +24,9 @@ const updatingUserId = ref(null); // id пользователя, у котор�
 const roleFilter = ref('all');
 
 const selectedMasterName = ref('');
+const clientSearch = ref('');
+const clientSort = ref('lastVisit'); // 'lastVisit' | 'firstVisit' | 'name'
+let searchDebounce = null;
 
 const filteredUsers = computed(() => {
   if (roleFilter.value === 'all') return allUsers.value;
@@ -48,7 +51,11 @@ async function loadClients(mid) {
   loading.value = true;
   error.value = null;
   try {
-    const url = mid ? `/crm/clients?masterId=${encodeURIComponent(mid)}` : '/crm/clients';
+    const params = new URLSearchParams();
+    if (mid) params.set('masterId', mid);
+    if (clientSearch.value.trim()) params.set('search', clientSearch.value.trim());
+    if (clientSort.value) params.set('sort', clientSort.value);
+    const url = params.toString() ? `/crm/clients?${params.toString()}` : '/crm/clients';
     clients.value = await api.get(url);
   } catch (e) {
     error.value = e.message;
@@ -109,6 +116,14 @@ async function toggleRole(u, role, value) {
   } finally {
     updatingUserId.value = null;
   }
+}
+
+function onClientSearchInput() {
+  if (searchDebounce) clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    loadClients(masterId.value || undefined);
+    searchDebounce = null;
+  }, 400);
 }
 
 function goToClient(id) {
@@ -216,7 +231,30 @@ watch([masterId, isAdmin], load);
     </template>
 
     <!-- Список клиентов (мастер или админ с выбранным мастером) -->
-    <ul v-else class="space-y-3">
+    <div v-else>
+      <div class="mb-4 space-y-3">
+        <input
+          v-model="clientSearch"
+          type="search"
+          placeholder="Поиск по имени, нику, инстаграму, телефону…"
+          class="w-full p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] placeholder-[var(--tg-theme-hint-color,#999)]"
+          @input="onClientSearchInput"
+        >
+        <div class="flex items-center gap-3">
+          <label for="client-sort" class="text-sm font-medium text-[var(--tg-theme-hint-color,#6b7280)] shrink-0">Сортировка</label>
+          <select
+            id="client-sort"
+            v-model="clientSort"
+            class="client-sort-select flex-1 min-w-0 p-3 pr-10 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] text-sm cursor-pointer"
+            @change="loadClients(masterId || undefined)"
+          >
+            <option value="lastVisit">По последней записи</option>
+            <option value="firstVisit">По первой записи</option>
+            <option value="name">По алфавиту</option>
+          </select>
+        </div>
+      </div>
+      <ul class="space-y-3">
       <li
         v-for="c in clients"
         :key="c.id"
@@ -233,6 +271,7 @@ watch([masterId, isAdmin], load);
         </div>
       </li>
     </ul>
+    </div>
   </div>
 </template>
 

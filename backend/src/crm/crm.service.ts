@@ -101,7 +101,12 @@ export class CrmService {
   /** Id prefix for "user-only" entries (registered but never booked). */
   private static readonly USER_ONLY_PREFIX = 'u-';
 
-  async getClients(user: User, filterMasterId?: string) {
+  async getClients(
+    user: User,
+    filterMasterId?: string,
+    search?: string,
+    sort?: 'lastVisit' | 'firstVisit' | 'name',
+  ) {
     let masterIds: string[];
     if (user.isAdmin && filterMasterId) {
       const allowed = await this.getMasterIds(user);
@@ -145,11 +150,19 @@ export class CrmService {
               return d > max ? d : max;
             }, new Date(0))
           : null;
+      const firstVisit =
+        doneOrScheduled.length > 0
+          ? doneOrScheduled.reduce((min, a) => {
+              const d = new Date(`${a.date}T${a.startTime}`);
+              return d < min ? d : min;
+            }, new Date(8640000000000000))
+          : null;
       const { appointments: _, ...rest } = c;
       const item: Record<string, unknown> = {
         ...rest,
         visitCount: doneOrScheduled.length,
         lastVisitAt: lastVisit ? lastVisit.toISOString() : null,
+        firstVisitAt: firstVisit ? firstVisit.toISOString() : null,
       };
       if (masterIdToName?.has(c.masterId)) item.masterName = masterIdToName.get(c.masterId);
       return item;
@@ -172,18 +185,55 @@ export class CrmService {
         updatedAt: u.updatedAt,
         visitCount: 0,
         lastVisitAt: null,
+        firstVisitAt: null,
       };
       if (singleMasterId && masterIdToName?.has(singleMasterId))
         item.masterName = masterIdToName.get(singleMasterId);
       list.push(item);
     }
-    list.sort((a, b) =>
-      String((a as { name?: string }).name ?? '').localeCompare(
+
+    const searchNorm = search?.trim().toLowerCase();
+    const filtered = searchNorm
+      ? list.filter((item) => {
+          const name = String((item as { name?: string }).name ?? '').toLowerCase();
+          const masterNickname = String((item as { masterNickname?: string }).masterNickname ?? '').toLowerCase();
+          const instagram = String((item as { instagram?: string }).instagram ?? '').toLowerCase();
+          const phone = String((item as { phone?: string }).phone ?? '').toLowerCase();
+          const username = String((item as { username?: string }).username ?? '').toLowerCase();
+          return (
+            name.includes(searchNorm) ||
+            masterNickname.includes(searchNorm) ||
+            instagram.includes(searchNorm) ||
+            phone.includes(searchNorm) ||
+            (searchNorm.startsWith('@') ? username.includes(searchNorm.slice(1)) : username.includes(searchNorm))
+          );
+        })
+      : list;
+
+    const sortKey = sort === 'lastVisit' || sort === 'firstVisit' || sort === 'name' ? sort : 'name';
+    filtered.sort((a, b) => {
+      if (sortKey === 'lastVisit') {
+        const aVal = (a as { lastVisitAt?: string | null }).lastVisitAt ?? '';
+        const bVal = (b as { lastVisitAt?: string | null }).lastVisitAt ?? '';
+        if (bVal && !aVal) return 1;
+        if (aVal && !bVal) return -1;
+        if (!aVal && !bVal) return 0;
+        return bVal.localeCompare(aVal);
+      }
+      if (sortKey === 'firstVisit') {
+        const aVal = (a as { firstVisitAt?: string | null }).firstVisitAt ?? '';
+        const bVal = (b as { firstVisitAt?: string | null }).firstVisitAt ?? '';
+        if (!aVal && !bVal) return String((a as { name?: string }).name ?? '').localeCompare(String((b as { name?: string }).name ?? ''), 'ru');
+        if (aVal && !bVal) return -1;
+        if (!aVal && bVal) return 1;
+        return aVal.localeCompare(bVal);
+      }
+      return String((a as { name?: string }).name ?? '').localeCompare(
         String((b as { name?: string }).name ?? ''),
         'ru',
-      ),
-    );
-    return list;
+      );
+    });
+    return filtered;
   }
 
   async createClient(user: User, dto: CreateClientDto) {
@@ -417,7 +467,7 @@ export class CrmService {
       .createQueryBuilder('slot')
       .leftJoinAndSelect('slot.service', 'service')
       .where('slot.masterId IN (:...masterIds)', { masterIds })
-      .orderBy('slot.date', 'ASC')
+      .orderBy('slot.date', 'DESC')
       .addOrderBy('slot.startTime', 'ASC');
     if (from) qb.andWhere('slot.date >= :from', { from });
     if (to) qb.andWhere('slot.date <= :to', { to });
@@ -426,7 +476,7 @@ export class CrmService {
     const fromDate = from ?? slots[0]?.date;
     const toDate = to ?? slots[slots.length - 1]?.date;
     if (slots.length === 0 || !fromDate || !toDate) {
-      return slots.map((s) => ({ ...s, isBooked: false }));
+      return slots.map((s) => ({ ...s, isBooked: false, bookedBy: null as string | null }));
     }
 
     const appointments = await this.appointmentRepo.find({
@@ -434,16 +484,12 @@ export class CrmService {
         masterId: In(masterIds),
         status: AppointmentStatus.SCHEDULED,
       },
-      relations: ['service'],
+      relations: ['service', 'client'],
     }).then((list) =>
       list.filter((a) => {
         const d = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
         return d >= fromDate && d <= toDate;
       }),
-    );
-
-    const bookedSlotIds = new Set(
-      appointments.filter((a) => a.slotId != null).map((a) => a.slotId as string),
     );
 
     const toMinutes = (t: string) => {
@@ -454,15 +500,20 @@ export class CrmService {
     return slots.map((slot) => {
       const slotDate = typeof slot.date === 'string' ? slot.date : (slot.date as Date).toISOString().slice(0, 10);
       if (slotDate < fromDate || slotDate > toDate) {
-        return { ...slot, isBooked: false };
+        return { ...slot, isBooked: false, bookedBy: null as string | null };
       }
       let isBooked = false;
+      let bookedBy: string | null = null;
       if (slot.forModels) {
-        isBooked = bookedSlotIds.has(slot.id);
+        const booking = appointments.find((a) => a.slotId === slot.id);
+        if (booking) {
+          isBooked = true;
+          bookedBy = booking.client?.name?.trim() ?? 'Клиент';
+        }
       } else {
         const slotStart = toMinutes(slot.startTime);
         const slotEnd = toMinutes(slot.endTime);
-        isBooked = appointments.some((a) => {
+        const booking = appointments.find((a) => {
           if (a.masterId !== slot.masterId) return false;
           const aDate = typeof a.date === 'string' ? a.date : (a.date as Date).toISOString().slice(0, 10);
           if (aDate !== slotDate) return false;
@@ -471,8 +522,12 @@ export class CrmService {
           const aEnd = aStart + duration;
           return this.timeRangesOverlap(slotStart, slotEnd, aStart, aEnd);
         });
+        if (booking) {
+          isBooked = true;
+          bookedBy = booking.client?.name?.trim() ?? 'Клиент';
+        }
       }
-      return { ...slot, isBooked };
+      return { ...slot, isBooked, bookedBy };
     });
   }
 
@@ -664,7 +719,11 @@ export class CrmService {
     const timeStr = (full.startTime || '').slice(0, 5);
     const clientName = full.client?.name ?? 'Клиент';
     const serviceName = full.service?.name ?? '—';
-    const text = `📅 Новая запись: ${dateStr} ${timeStr}, ${this.escapeHtml(serviceName)}. Клиент: ${this.escapeHtml(clientName)}`;
+    const clientTgId = full.client?.telegramId?.trim();
+    const linkToClient = clientTgId
+      ? `<a href="tg://user?id=${clientTgId}">${this.escapeHtml(clientName)}</a>`
+      : this.escapeHtml(clientName);
+    const text = `📅 Новая запись: ${dateStr} ${timeStr}, ${this.escapeHtml(serviceName)}. Клиент: ${linkToClient}`;
     await this.botService.sendMessage(masterTgId, text);
   }
 
