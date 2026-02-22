@@ -414,8 +414,26 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
       const apptDate = parseDateTimeInVilnius(appointment.date, appointment.startTime || '00:00');
       const minutesLeft = Math.max(0, Math.round((apptDate.getTime() - Date.now()) / 60000));
-      const text = `${mention} будет через ${minutesLeft} мин и желает выпить <b>${escapeHtml(optionText)}</b>.`;
-      await this.sendMessage(appointment.master.telegramId, text);
+      const masterText = `${mention} будет через ${minutesLeft} мин и желает выпить <b>${escapeHtml(optionText)}</b>.`;
+      await this.sendMessage(appointment.master.telegramId, masterText);
+
+      // Подтверждение клиенту: убираем кнопки и пишем, что напиток будет готов
+      const msg = ctx.callbackQuery?.message && 'message_id' in ctx.callbackQuery.message ? ctx.callbackQuery.message : null;
+      if (this.bot && msg) {
+        const chatId = (msg as { chat?: { id?: number } }).chat?.id;
+        const messageId = (msg as { message_id?: number }).message_id;
+        if (chatId != null && messageId != null) {
+          const clientConfirmText = `Отлично! «${escapeHtml(optionText)}» будет готов к вашему сеансу.`;
+          try {
+            await this.bot.telegram.editMessageText(chatId, messageId, undefined, clientConfirmText, {
+              parse_mode: 'HTML',
+              reply_markup: { inline_keyboard: [] },
+            });
+          } catch (e) {
+            console.warn('Bot editMessageText drink confirm:', e);
+          }
+        }
+      }
     });
 
     this.bot.action(/^qt_(\d+)_(\d+)$/, async (ctx) => {

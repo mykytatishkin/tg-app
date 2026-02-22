@@ -138,6 +138,21 @@ function newUsersPieGradient(registered, madeOrder) {
   return `conic-gradient(#22c55e 0turn ${pct}turn, #9ca3af ${pct}turn 1turn)`;
 }
 
+/** Pie chart for slot stats: 4 segments — для себя свободные, для себя занятые, для моделей свободные, для моделей занятые. */
+function slotStatsPieGradient(s) {
+  if (!s) return 'conic-gradient(#9ca3af 0turn 1turn)';
+  const total = s.totalRegular + s.totalModels;
+  if (!total) return 'conic-gradient(#e5e7eb 0turn 1turn)';
+  const t1 = (s.totalRegular - s.bookedRegular) / total;
+  const t2 = s.bookedRegular / total;
+  const t3 = (s.totalModels - s.bookedModels) / total;
+  const t4 = s.bookedModels / total;
+  const a = t1;
+  const b = a + t2;
+  const c = b + t3;
+  return `conic-gradient(#e5e7eb 0turn ${a}turn, #3b82f6 ${a}turn ${b}turn, #d1d5db ${b}turn ${c}turn, #8b5cf6 ${c}turn 1turn)`;
+}
+
 /** Max count in byService for bar chart scale. */
 const serviceChartMax = computed(() => {
   const list = stats.value?.byService ?? [];
@@ -726,6 +741,41 @@ watch([selectedMasterId, filterYearMonth], load);
           </div>
         </div>
       </div>
+
+      <h2 v-if="filterYearMonth" class="text-lg font-semibold mb-3">Окошки (слоты) за месяц</h2>
+      <template v-if="filterYearMonth">
+        <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
+          Доля слотов для себя и для моделей, занятые и свободные.
+        </p>
+        <div
+          v-if="stats.slotStats && (stats.slotStats.totalRegular + stats.slotStats.totalModels) > 0"
+          class="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] mb-8"
+        >
+          <div
+            class="shrink-0 w-32 h-32 rounded-full border-4 border-[var(--tg-theme-bg-color,#fff)]"
+            :style="{ background: slotStatsPieGradient(stats.slotStats) }"
+          />
+          <div class="flex flex-col gap-2 text-sm">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#e5e7eb]" />
+              Для себя, свободные ({{ (stats.slotStats.totalRegular - stats.slotStats.bookedRegular) }})
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#3b82f6]" />
+              Для себя, занятые ({{ stats.slotStats.bookedRegular }})
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#d1d5db]" />
+              Для моделей, свободные ({{ stats.slotStats.totalModels - stats.slotStats.bookedModels }})
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-[#8b5cf6]" />
+              Для моделей, занятые ({{ stats.slotStats.bookedModels }})
+            </span>
+          </div>
+        </div>
+        <p v-else class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-8">Нет слотов за выбранный месяц.</p>
+      </template>
 
       <!-- Модальное окно: список записей по датам -->
       <Teleport to="body">

@@ -235,6 +235,8 @@ export class AppointmentsService {
   }
 
   async getAvailableSlots(date: string, serviceId: string, masterId?: string) {
+    const todayStr = getTodayInVilnius();
+    if (date < todayStr) return [];
     const result = await this.getAvailableSlotsForDate(date, serviceId, masterId);
     return result;
   }
@@ -245,6 +247,9 @@ export class AppointmentsService {
     serviceId: string,
     masterId?: string,
   ): Promise<{ startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[]> {
+    const todayStr = getTodayInVilnius();
+    if (date < todayStr) return [];
+
     const resolved = masterId ? await this.resolveMasterId(masterId) : await this.getMasterId();
     const service = await this.serviceRepo.findOne({
       where: { id: serviceId, masterId: resolved },
@@ -264,7 +269,6 @@ export class AppointmentsService {
     const duration = service.durationMinutes;
     const freeSlots: { startTime: string; endTime: string; slotId?: string; priceModifier?: number | null }[] = [];
     const now = new Date();
-    const todayStr = getTodayInVilnius();
     const isToday = date === todayStr;
 
     for (const slot of slots) {
@@ -421,9 +425,11 @@ export class AppointmentsService {
 
     while (current <= to) {
       const dateStr = current.toISOString().slice(0, 10);
-      const daySlots = await this.getAvailableSlotsForDate(dateStr, serviceId, resolved);
-      for (const s of daySlots) {
-        result.push({ date: dateStr, startTime: s.startTime, endTime: s.endTime, slotId: s.slotId, priceModifier: s.priceModifier });
+      if (dateStr >= todayStr) {
+        const daySlots = await this.getAvailableSlotsForDate(dateStr, serviceId, resolved);
+        for (const s of daySlots) {
+          result.push({ date: dateStr, startTime: s.startTime, endTime: s.endTime, slotId: s.slotId, priceModifier: s.priceModifier });
+        }
       }
       current.setDate(current.getDate() + 1);
     }

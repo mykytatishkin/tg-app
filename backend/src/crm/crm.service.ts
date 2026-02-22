@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Between, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
@@ -984,6 +984,49 @@ export class CrmService {
         ? feedbackList.reduce((s, f) => s + f.rating, 0) / feedbackCount
         : null;
 
+    /** Слоты за выбранный месяц: для себя (regular) и для моделей, занятые/свободные */
+    let slotStats: {
+      totalRegular: number;
+      bookedRegular: number;
+      totalModels: number;
+      bookedModels: number;
+    } | null = null;
+    if (year && month) {
+      const firstDay = `${year}-${month}-01`;
+      const lastDayNum = new Date(parseInt(year, 10), parseInt(month, 10), 0).getDate();
+      const lastDay = `${year}-${month}-${String(lastDayNum).padStart(2, '0')}`;
+      const slotsInMonth = await this.slotRepo.find({
+        where: { masterId: In(masterIds), date: Between(firstDay, lastDay) },
+        select: ['id', 'forModels'],
+      });
+      const appointmentsInMonth = await this.appointmentRepo.find({
+        where: {
+          masterId: In(masterIds),
+          date: Between(firstDay, lastDay),
+          status: In([AppointmentStatus.SCHEDULED, AppointmentStatus.DONE]),
+        },
+        select: ['slotId'],
+      });
+      const bookedSlotIds = new Set(
+        appointmentsInMonth.map((a) => a.slotId).filter((id): id is string => id != null),
+      );
+      let totalRegular = 0;
+      let bookedRegular = 0;
+      let totalModels = 0;
+      let bookedModels = 0;
+      for (const slot of slotsInMonth) {
+        const booked = bookedSlotIds.has(slot.id);
+        if (slot.forModels) {
+          totalModels += 1;
+          if (booked) bookedModels += 1;
+        } else {
+          totalRegular += 1;
+          if (booked) bookedRegular += 1;
+        }
+      }
+      slotStats = { totalRegular, bookedRegular, totalModels, bookedModels };
+    }
+
     return {
       totalAppointments: doneOrScheduled.length,
       totalClients: clientsCount,
@@ -993,6 +1036,7 @@ export class CrmService {
       totals,
       feedbackCount,
       averageRating: averageRating != null ? Math.round(averageRating * 10) / 10 : null,
+      slotStats,
     };
   }
 }

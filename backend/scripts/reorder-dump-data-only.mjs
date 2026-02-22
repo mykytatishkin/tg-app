@@ -2,6 +2,14 @@
 /**
  * Extracts COPY blocks from pg_dump and writes them in FK order so COPY succeeds.
  * Usage: node reorder-dump-data-only.mjs [input.sql] [output.sql]
+ *
+ * Tables and usage:
+ * - users, clients, services — masters, clients, services.
+ * - availability_slots — слоты мастера (для себя / для моделей); используются в статистике
+ *   «Окошки (слоты) за месяц» (slotStats: доля слотов для себя/для моделей, занятые/свободные).
+ * - appointments, appointment_feedback — записи и отзывы; appointments.slotId связывает запись со слотом.
+ * - giveaways, giveaway_participants, giveaway_winners — розыгрыши.
+ * - monthly_expenses — аренда и прочее по месяцам.
  */
 
 import fs from 'fs';
