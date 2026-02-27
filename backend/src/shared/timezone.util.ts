@@ -21,19 +21,42 @@ export function formatDateTimeForNotification(date: string | Date, time: string)
 
 /**
  * Создает объект Date из даты и времени, интерпретируя их как локальное время Вильнюса.
- * Используется для расчетов (например, сколько минут до записи).
+ * Не зависит от часового пояса сервера (корректно работает при проде в Нидерландах и клиентах в Вильнюсе).
  * @param date - дата в формате YYYY-MM-DD или объект Date
  * @param time - время в формате HH:MM или HH:MM:SS (локальное время Вильнюса)
- * @returns объект Date
+ * @returns объект Date (UTC момент)
  */
 export function parseDateTimeInVilnius(date: string | Date, time: string): Date {
   const dateStr = typeof date === 'string' ? date : date.toISOString().slice(0, 10);
-  const timeStr = String(time ?? '').trim();
-  const timeNormalized = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-  
-  // Парсим как локальное время (без 'Z' на конце)
-  // Это будет интерпретировано в часовом поясе сервера
-  return new Date(`${dateStr}T${timeNormalized}`);
+  const timeStr = String(time ?? '').trim().slice(0, 8); // HH:MM or HH:MM:SS
+  const [hour = 0, min = 0] = timeStr.split(':').map(Number);
+
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return new Date(NaN);
+
+  // Опорная точка: полдень UTC в этот день — по ней узнаём смещение Вильнюса (DST)
+  const noonUtc = Date.UTC(y, m - 1, d, 12, 0, 0);
+  const noonDate = new Date(noonUtc);
+
+  const vilniusFormatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: VILNIUS_TIMEZONE,
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+  const parts = vilniusFormatter.formatToParts(noonDate);
+  const getPart = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const vilniusHour = getPart('hour');
+  const vilniusMin = getPart('minute');
+  const vilniusSec = getPart('second');
+
+  // Нужный момент в Вильнюсе (target) vs полдень в Вильнюсе: сдвиг в мс
+  const targetLocalMs = (hour * 3600 + min * 60) * 1000;
+  const noonVilniusMs = (vilniusHour * 3600 + vilniusMin * 60 + vilniusSec) * 1000;
+  const deltaMs = targetLocalMs - noonVilniusMs;
+
+  return new Date(noonUtc + deltaMs);
 }
 
 /**
