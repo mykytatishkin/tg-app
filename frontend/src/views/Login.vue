@@ -9,11 +9,13 @@ const { loginWithTelegram, isAuthenticated, loading, error } = useAuth();
 const { isAvailable } = useTelegramWebApp();
 
 async function handleLogin() {
+  error.value = null;
   const result = await loginWithTelegram();
   if (result) router.replace('/');
 }
 
 onMounted(async () => {
+  error.value = null;
   if (isAuthenticated.value) {
     router.replace('/');
     return;

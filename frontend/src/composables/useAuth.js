@@ -3,6 +3,18 @@ import { useTelegramWebApp } from './useTelegramWebApp';
 
 const STORAGE_KEY = 'tg_auth';
 
+function isTokenExpired(tok) {
+  if (!tok || typeof tok !== 'string') return true;
+  const parts = tok.split('.');
+  if (parts.length !== 3) return true;
+  try {
+    const payload = JSON.parse(atob(parts[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
+
 export function useAuth() {
   const { initData, getApiUrl, isAvailable, user: tgUser } = useTelegramWebApp();
 
@@ -51,6 +63,7 @@ export function useAuth() {
   function logout() {
     token.value = '';
     user.value = null;
+    error.value = null;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(`${STORAGE_KEY}_user`);
   }
@@ -62,10 +75,10 @@ export function useAuth() {
   }
 
   async function ensureAuth() {
-    if (token.value) return true;
+    if (token.value && !isTokenExpired(token.value)) return true;
+    if (token.value) logout(); // clear stale token
     if (isAvailable.value && initData.value) {
-      const result = await loginWithTelegram();
-      return !!result;
+      return !!(await loginWithTelegram());
     }
     return false;
   }

@@ -39,7 +39,9 @@ export class TelegramInitGuard implements CanActivate {
       request.telegramUser = parsed.user as TelegramUser;
       return true;
     } catch {
-      throw new UnauthorizedException('Invalid Telegram initData');
+      throw new UnauthorizedException(
+        'Не удалось войти. Откройте бота заново в Telegram и нажмите «Открыть запись».',
+      );
     }
   }
 }

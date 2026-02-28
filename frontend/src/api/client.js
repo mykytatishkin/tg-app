@@ -6,29 +6,30 @@ export function setAuthComposable(composable) {
   authComposable = composable;
 }
 
-export async function apiRequest(path, options = {}) {
+export async function apiRequest(path, options = {}, _retry = false) {
   const auth = authComposable || useAuth();
-  const { getApiUrl, getAuthHeaders } = auth;
+  const { getApiUrl, getAuthHeaders, loginWithTelegram, logout } = auth;
 
   const url = getApiUrl(path);
-  const headers = getAuthHeaders();
+  const headers = { 'ngrok-skip-browser-warning': '1', ...getAuthHeaders(), ...options.headers };
   if (options.body != null && typeof options.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'ngrok-skip-browser-warning': '1', ...headers, ...options.headers },
-  });
+  const res = await fetch(url, { ...options, headers });
 
-  const contentType = res.headers.get('content-type');
-  const isJson = contentType?.includes('application/json');
+  if (res.status === 401 && !_retry) {
+    const result = await loginWithTelegram();
+    if (result) return apiRequest(path, options, true);
+    logout();
+    throw new Error('Сессия истекла. Перезапустите приложение.');
+  }
 
+  const isJson = res.headers.get('content-type')?.includes('application/json');
   if (!res.ok) {
     const errData = isJson ? await res.json().catch(() => ({})) : {};
     throw new Error(errData.message || `Request failed: ${res.status}`);
   }
-
   return isJson ? res.json() : res.text();
 }
 
