@@ -1,4 +1,5 @@
 import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Between, LessThanOrEqual, Repository } from 'typeorm';
 import { Client } from './entities/client.entity';
@@ -1131,5 +1132,29 @@ export class CrmService {
       slotStats,
       drinkStats,
     };
+  }
+
+  async getCalendarFeedUrl(user: User, baseUrl: string): Promise<{ feedUrl: string }> {
+    let master = await this.userRepo.findOne({ where: { id: user.id } });
+    if (!master) throw new ForbiddenException('User not found');
+
+    if (!master.calendarToken) {
+      master.calendarToken = randomUUID();
+      await this.userRepo.save(master);
+    }
+
+    const feedUrl = `${baseUrl}/api/calendar/feed/${master.calendarToken}.ics`;
+    return { feedUrl };
+  }
+
+  async regenerateCalendarToken(user: User, baseUrl: string): Promise<{ feedUrl: string }> {
+    const master = await this.userRepo.findOne({ where: { id: user.id } });
+    if (!master) throw new ForbiddenException('User not found');
+
+    master.calendarToken = randomUUID();
+    await this.userRepo.save(master);
+
+    const feedUrl = `${baseUrl}/api/calendar/feed/${master.calendarToken}.ics`;
+    return { feedUrl };
   }
 }

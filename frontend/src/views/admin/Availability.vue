@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { api } from '../../api/client';
+import { api, calendarApi } from '../../api/client';
 import { useTelegramWebApp } from '../../composables/useTelegramWebApp';
 import { useAdminMasters } from '../../composables/useAdminMasters';
 
@@ -284,6 +284,71 @@ function goBack() {
   router.push('/');
 }
 
+// ── Calendar sync ─────────────────────────────────────────────────────────────
+const calendarSectionOpen = ref(false);
+const calendarFeedUrl = ref('');
+const calendarLoading = ref(false);
+const calendarError = ref(null);
+const calendarCopied = ref(false);
+
+async function openCalendarSection() {
+  calendarSectionOpen.value = !calendarSectionOpen.value;
+  if (calendarSectionOpen.value && !calendarFeedUrl.value) {
+    await loadCalendarFeedUrl();
+  }
+}
+
+async function loadCalendarFeedUrl() {
+  calendarLoading.value = true;
+  calendarError.value = null;
+  try {
+    const data = await calendarApi.getFeedUrl();
+    calendarFeedUrl.value = data.feedUrl;
+  } catch (e) {
+    calendarError.value = e.message;
+  } finally {
+    calendarLoading.value = false;
+  }
+}
+
+async function doRegenerateCalendarToken() {
+  if (!confirm('Старая ссылка перестанет работать. Продолжить?')) return;
+  calendarLoading.value = true;
+  calendarError.value = null;
+  try {
+    const data = await calendarApi.regenerateToken();
+    calendarFeedUrl.value = data.feedUrl;
+    hapticFeedback?.('success');
+  } catch (e) {
+    calendarError.value = e.message;
+  } finally {
+    calendarLoading.value = false;
+  }
+}
+
+async function copyFeedUrl() {
+  if (!calendarFeedUrl.value) return;
+  try {
+    await navigator.clipboard.writeText(calendarFeedUrl.value);
+    calendarCopied.value = true;
+    setTimeout(() => { calendarCopied.value = false; }, 2000);
+    hapticFeedback?.('light');
+  } catch {
+    // fallback: select text
+  }
+}
+
+function openInIosCalendar() {
+  const webcalUrl = calendarFeedUrl.value.replace(/^https?:\/\//, 'webcal://');
+  window.open(webcalUrl, '_blank');
+}
+
+function openInGoogleCalendar() {
+  const encoded = encodeURIComponent(calendarFeedUrl.value);
+  window.open(`https://calendar.google.com/calendar/r?cid=${encoded}`, '_blank');
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 onMounted(async () => {
   if (isAdmin.value) await loadMasters();
   await load();
@@ -324,6 +389,77 @@ watch(selectedMasterId, load);
     <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-4">
       Клиенты видят слоты на ближайшие 60 дней — добавляйте слоты в этом диапазоне.
     </p>
+
+    <!-- Calendar sync section (masters only) -->
+    <div v-if="!isAdmin" class="mb-6">
+      <button
+        type="button"
+        class="w-full flex items-center justify-between py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]"
+        @click="openCalendarSection"
+      >
+        <span>📅 Синхронизация с календарём</span>
+        <span class="text-[var(--tg-theme-hint-color,#999)] text-sm">{{ calendarSectionOpen ? '▲' : '▼' }}</span>
+      </button>
+
+      <div v-if="calendarSectionOpen" class="mt-3 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] space-y-4">
+        <p class="text-sm text-[var(--tg-theme-hint-color,#999)]">
+          Подпишитесь на приватную ссылку — iOS Calendar или Google Calendar автоматически будет показывать все ваши окошки и записи.
+        </p>
+
+        <div v-if="calendarLoading" class="text-sm text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
+        <div v-else-if="calendarError" class="text-sm text-red-400">{{ calendarError }}</div>
+
+        <template v-else-if="calendarFeedUrl">
+          <div class="flex gap-2">
+            <input
+              :value="calendarFeedUrl"
+              readonly
+              class="flex-1 p-3 rounded-lg text-xs bg-[var(--tg-theme-bg-color,#e8e8e8)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)] truncate"
+              @focus="($event.target).select()"
+            />
+            <button
+              type="button"
+              class="shrink-0 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+              @click="copyFeedUrl"
+            >
+              {{ calendarCopied ? '✓' : 'Копировать' }}
+            </button>
+          </div>
+
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="flex-1 py-2 px-3 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+              @click="openInIosCalendar"
+            >
+              iOS Calendar
+            </button>
+            <button
+              type="button"
+              class="flex-1 py-2 px-3 rounded-lg text-sm font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+              @click="openInGoogleCalendar"
+            >
+              Google Calendar
+            </button>
+          </div>
+
+          <div class="text-xs text-[var(--tg-theme-hint-color,#999)] space-y-1">
+            <p><strong>iOS:</strong> Нажмите «iOS Calendar» — телефон спросит подтверждение. Или вставьте ссылку вручную: Настройки → Приложения → Календарь → Учётные записи → Добавить → Другие → Подписка на календарь.</p>
+            <p><strong>Google:</strong> Нажмите «Google Calendar» — календарь сразу предложит добавить. Или вставьте ссылку в Google Calendar → Другие календари → Добавить по URL.</p>
+            <p>Обновление каждые ~15 минут.</p>
+          </div>
+
+          <button
+            type="button"
+            class="w-full py-2 rounded-lg text-sm text-[var(--tg-theme-hint-color,#999)] bg-[var(--tg-theme-bg-color,#e8e8e8)]"
+            :disabled="calendarLoading"
+            @click="doRegenerateCalendarToken"
+          >
+            Обновить ссылку (старая перестанет работать)
+          </button>
+        </template>
+      </div>
+    </div>
 
     <div v-if="!showForm" class="mb-6 space-y-3">
       <button

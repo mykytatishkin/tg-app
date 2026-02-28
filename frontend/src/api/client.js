@@ -43,3 +43,8 @@ export const api = {
     apiRequest(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: (path) => apiRequest(path, { method: 'DELETE' }),
 };
+
+export const calendarApi = {
+  getFeedUrl: () => api.get('/crm/calendar/feed-url'),
+  regenerateToken: () => api.post('/crm/calendar/regenerate-token'),
+};

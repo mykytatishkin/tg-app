@@ -63,6 +63,10 @@ export class User {
   @Column({ type: 'json', nullable: true })
   favoriteTimeBuckets: string[] | null;
 
+  /** Private token for iCal calendar feed. Null until master generates it. */
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  calendarToken: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

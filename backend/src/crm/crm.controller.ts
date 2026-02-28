@@ -10,6 +10,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
+import type { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MasterOrAdminGuard } from '../auth/guards/master-or-admin.guard';
 import { CrmService } from './crm.service';
@@ -219,5 +220,17 @@ export class CrmController {
   @Delete('appointments/:id')
   deleteAppointment(@Request() req: { user: User }, @Param('id') id: string) {
     return this.crmService.deleteAppointment(req.user, id);
+  }
+
+  @Get('calendar/feed-url')
+  getCalendarFeedUrl(@Request() req: { user: User } & ExpressRequest) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return this.crmService.getCalendarFeedUrl(req.user, baseUrl);
+  }
+
+  @Post('calendar/regenerate-token')
+  regenerateCalendarToken(@Request() req: { user: User } & ExpressRequest) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return this.crmService.regenerateCalendarToken(req.user, baseUrl);
   }
 }
