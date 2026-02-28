@@ -224,13 +224,25 @@ export class CrmController {
 
   @Get('calendar/feed-url')
   getCalendarFeedUrl(@Request() req: { user: User } & ExpressRequest) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = this.resolveBaseUrl(req);
     return this.crmService.getCalendarFeedUrl(req.user, baseUrl);
   }
 
   @Post('calendar/regenerate-token')
   regenerateCalendarToken(@Request() req: { user: User } & ExpressRequest) {
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const baseUrl = this.resolveBaseUrl(req);
     return this.crmService.regenerateCalendarToken(req.user, baseUrl);
+  }
+
+  private resolveBaseUrl(req: ExpressRequest): string {
+    // Explicit override takes priority
+    if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/$/, '');
+    // Dev/ngrok: frontend (MINI_APP_URL) proxies /api → backend, so same origin works
+    if (process.env.MINI_APP_URL) {
+      try { return new URL(process.env.MINI_APP_URL).origin; } catch { /* ignore */ }
+    }
+    const proto = (req.get('x-forwarded-proto') as string) || req.protocol;
+    const host = (req.get('x-forwarded-host') as string) || req.get('host');
+    return `${proto}://${host}`;
   }
 }
