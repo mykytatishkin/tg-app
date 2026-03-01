@@ -81,7 +81,6 @@ export class CalendarService {
           end: endDate,
           summary: isCancelled ? `❌ ${summary}` : summary,
           status: isCancelled ? ICalEventStatus.CANCELLED : ICalEventStatus.CONFIRMED,
-          timezone: TIMEZONE,
         });
       } else if (slot.isAvailable) {
         // Slot is free — show as a free window
@@ -94,7 +93,6 @@ export class CalendarService {
           end: endDate,
           summary,
           status: ICalEventStatus.CONFIRMED,
-          timezone: TIMEZONE,
           transparency: ICalEventTransparency.TRANSPARENT, // shows as "free" in calendar apps
         });
       }
@@ -116,7 +114,6 @@ export class CalendarService {
         end: endDate,
         summary: isCancelled ? `❌ ${summary}` : summary,
         status: isCancelled ? ICalEventStatus.CANCELLED : ICalEventStatus.CONFIRMED,
-        timezone: TIMEZONE,
       });
     }
 
