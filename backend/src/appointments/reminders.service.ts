@@ -4,6 +4,7 @@ import { Repository, IsNull } from 'typeorm';
 import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
 import { BotService } from '../bot/bot.service';
 import { formatDateTimeForNotification, parseDateTimeInVilnius } from '../shared/timezone.util';
+import { getClickableAddressHtml } from '../shared/maps.util';
 
 const INTERVAL_MS = 15 * 60 * 1000; // 15 min
 const REMINDER_WINDOW_HOURS = 24;
@@ -71,6 +72,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const masterName = a.master ? `${a.master.firstName} ${a.master.lastName || ''}`.trim() : 'Master';
       const clientTgId = a.client?.telegramId?.trim() || null;
       const masterTgId = a.master?.telegramId?.trim() || null;
+      const masterAddress = (a.master as { address?: string | null } | undefined)?.address?.trim() || '';
 
       let clientReminderOk = !clientTgId;
       let masterReminderOk = !masterTgId;
@@ -80,17 +82,22 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         const linkToMaster = masterTgId
           ? `<a href="tg://user?id=${masterTgId}">${escapeHtml(masterName)}</a>`
           : masterName;
-        const text = `🕙Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Мастер: ${linkToMaster}`;
+        const addressPart = masterAddress ? ` Адрес:${getClickableAddressHtml(masterAddress)}` : '';
+        const text = `🕙Напоминание о записи: ${dateTimeStr}${serviceName ? `, ${serviceName}` : ''}. Мастер: ${linkToMaster}${addressPart}`;
         clientReminderOk = await this.botService.sendMessage(clientTgId, text);
 
         const minutesUntil = (appointmentDateTime.getTime() - now.getTime()) / 60000;
         if (minutesUntil <= 10 && minutesUntil >= 0 && !a.preSessionReminderSentAt) {
-          const master = a.master as { drinkOptions?: string[] | null; telegramId?: string } | undefined;
+          const master = a.master as { drinkOptions?: string[] | null; address?: string | null; telegramId?: string } | undefined;
           const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
+          const preSessionAddress = master?.address?.trim() || '';
+          const preSessionText = preSessionAddress
+            ? `приветик! у тебя скоро запись! Адрес:${getClickableAddressHtml(preSessionAddress)}`
+            : 'приветик! у тебя скоро запись!';
           const drinkSent =
             drinkOptions.length > 0
-              ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
-              : await this.botService.sendMessage(clientTgId, 'приветик! у тебя скоро запись!');
+              ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions, preSessionAddress || undefined)
+              : await this.botService.sendMessage(clientTgId, preSessionText);
           let masterPreSent = true;
           if (masterTgId) {
             const clientUsername = a.client?.username?.trim();
@@ -141,14 +148,18 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const clientTgId = a.client?.telegramId?.trim() || null;
       if (!clientTgId) continue;
 
-      const master = a.master as { drinkOptions?: string[] | null; telegramId?: string } | undefined;
+      const master = a.master as { drinkOptions?: string[] | null; address?: string | null; telegramId?: string } | undefined;
       const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
       const masterTgId = master?.telegramId?.trim() || null;
+      const masterAddress = master?.address?.trim() || '';
+      const preSessionText = masterAddress
+        ? `приветик! у тебя скоро запись! Адрес:${getClickableAddressHtml(masterAddress)}`
+        : 'приветик! у тебя скоро запись!';
 
       const drinkSent =
         drinkOptions.length > 0
-          ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions)
-          : await this.botService.sendMessage(clientTgId, 'приветик! у тебя скоро запись!');
+          ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions, masterAddress || undefined)
+          : await this.botService.sendMessage(clientTgId, preSessionText);
       let masterSent = true;
       if (masterTgId) {
         const clientName = a.client?.name ?? 'Клиент';

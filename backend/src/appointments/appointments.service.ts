@@ -8,7 +8,8 @@ import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entiti
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { BotService } from '../bot/bot.service';
-import { getTodayInVilnius, parseDateTimeInVilnius } from '../shared/timezone.util';
+import { getTodayInVilnius, parseDateTimeInVilnius, formatDateTimeForNotification } from '../shared/timezone.util';
+import { getGoogleMapsUrl } from '../shared/maps.util';
 
 @Injectable()
 export class AppointmentsService {
@@ -32,11 +33,11 @@ export class AppointmentsService {
     return master.id;
   }
 
-  /** List masters for client booking (id, firstName, lastName). */
-  async getMasters(): Promise<{ id: string; firstName: string; lastName: string | null }[]> {
+  /** List masters for client booking (id, firstName, lastName, address). */
+  async getMasters(): Promise<{ id: string; firstName: string; lastName: string | null; address: string | null }[]> {
     const masters = await this.userRepo.find({
       where: { isMaster: true },
-      select: ['id', 'firstName', 'lastName'],
+      select: ['id', 'firstName', 'lastName', 'address'],
       order: { firstName: 'ASC' },
     });
     return masters;
@@ -481,6 +482,7 @@ export class AppointmentsService {
       const saved = await this.appointmentRepo.save(appointment);
       const serviceForSlot = slot.serviceId ? await this.serviceRepo.findOne({ where: { id: slot.serviceId } }) : null;
       await this.notifyMasterOnNewBooking(masterId, client, saved, serviceForSlot?.name ?? null);
+      await this.notifyClientOnBooking(client, saved, serviceForSlot?.name ?? null, masterId);
       if (serviceForSlot) {
         await this.maybeNotifyMasterDayFull(masterId, dto.date, serviceForSlot.id);
       }
@@ -507,8 +509,47 @@ export class AppointmentsService {
     });
     const saved = await this.appointmentRepo.save(appointment);
     await this.notifyMasterOnNewBooking(masterId, client, saved, service.name);
+    await this.notifyClientOnBooking(client, saved, service.name, masterId);
     await this.maybeNotifyMasterDayFull(masterId, dto.date, service.id);
     return saved;
+  }
+
+  /** Notify client in Telegram: confirmation with address and calendar buttons. */
+  private async notifyClientOnBooking(
+    client: Client,
+    appointment: Appointment,
+    serviceName: string | null,
+    masterId: string,
+  ): Promise<void> {
+    const clientTgId = client.telegramId?.trim();
+    if (!clientTgId) return;
+
+    const master = await this.userRepo.findOne({ where: { id: masterId }, select: ['address'] });
+    const masterAddress = master?.address?.trim() || '';
+    const dateTimeStr = formatDateTimeForNotification(appointment.date, appointment.startTime);
+    const servicePart = serviceName ? `, ${serviceName}` : '';
+    let text = `✅ Вы записаны на ${dateTimeStr}${servicePart}.`;
+    if (masterAddress) {
+      text += ` Адрес: ${this.escapeHtml(masterAddress)}`;
+    }
+
+    const buttons: { label: string; url: string }[] = [];
+    if (masterAddress) {
+      buttons.push({ label: '📍 Адрес', url: getGoogleMapsUrl(masterAddress) });
+    }
+    const start = parseDateTimeInVilnius(appointment.date, appointment.startTime);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    const formatForCalendar = (d: Date) => d.toISOString().replace(/-|:|\.\d+/g, '').slice(0, 15) + 'Z';
+    let calendarUrl =
+      'https://www.google.com/calendar/render?action=TEMPLATE' +
+      `&text=${encodeURIComponent(serviceName ? `Запись: ${serviceName}` : 'Запись')}` +
+      `&dates=${formatForCalendar(start)}/${formatForCalendar(end)}`;
+    if (masterAddress) {
+      calendarUrl += `&details=${encodeURIComponent(masterAddress)}`;
+    }
+    buttons.push({ label: '📅 Синхронизировать календарь', url: calendarUrl });
+
+    await this.botService.sendMessageWithUrlButtons(clientTgId, text, buttons);
   }
 
   /** Notify master in Telegram about a new booking (client self-service). */

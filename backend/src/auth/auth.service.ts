@@ -76,10 +76,18 @@ export class AuthService {
     return this.userRepository.save(user);
   }
 
-  async updateDrinkOptions(userId: string, drinkOptions: string[]): Promise<Omit<User, never>> {
+  async updateMe(
+    userId: string,
+    updates: { drinkOptions?: string[]; address?: string },
+  ): Promise<Omit<User, never>> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
-    user.drinkOptions = drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    if (updates.drinkOptions !== undefined) {
+      user.drinkOptions = updates.drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    }
+    if (updates.address !== undefined) {
+      user.address = updates.address?.trim() || null;
+    }
     const saved = await this.userRepository.save(user);
     return this.sanitizeUser(saved);
   }
@@ -99,21 +107,24 @@ export class AuthService {
   async getUserByIdForAdmin(userId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'firstName', 'lastName', 'username', 'isMaster', 'isAdmin', 'drinkOptions', 'feedbackOptions'],
+      select: ['id', 'firstName', 'lastName', 'username', 'isMaster', 'isAdmin', 'drinkOptions', 'address', 'feedbackOptions'],
     });
     if (!user) throw new UnauthorizedException('User not found');
     return user;
   }
 
-  /** Admin only: update another user's drinkOptions and/or roles (isAdmin, isMaster). */
+  /** Admin only: update another user's drinkOptions, address and/or roles (isAdmin, isMaster). */
   async updateUserForAdmin(
     userId: string,
-    updates: { drinkOptions?: string[]; isAdmin?: boolean; isMaster?: boolean },
+    updates: { drinkOptions?: string[]; address?: string; isAdmin?: boolean; isMaster?: boolean },
   ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('User not found');
     if (updates.drinkOptions !== undefined) {
       user.drinkOptions = updates.drinkOptions.filter((s) => typeof s === 'string' && s.trim().length > 0);
+    }
+    if (updates.address !== undefined) {
+      user.address = updates.address?.trim() || null;
     }
     if (updates.isAdmin !== undefined) user.isAdmin = updates.isAdmin;
     if (updates.isMaster !== undefined) user.isMaster = updates.isMaster;
@@ -134,6 +145,7 @@ export class AuthService {
     return {
       id: saved.id,
       ...(updates.drinkOptions !== undefined && { drinkOptions: saved.drinkOptions }),
+      ...(updates.address !== undefined && { address: saved.address }),
       ...(updates.isAdmin !== undefined && { isAdmin: saved.isAdmin }),
       ...(updates.isMaster !== undefined && { isMaster: saved.isMaster }),
     };

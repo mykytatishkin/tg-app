@@ -3,22 +3,38 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import { api } from '../api/client';
 
 const router = useRouter();
 const { user, logout, refreshUser, isAuthenticated } = useAuth();
 const { hapticFeedback } = useTelegramWebApp();
 
 const userReady = ref(false);
+const masters = ref([]);
+
+function getGoogleMapsUrl(address) {
+  if (!address?.trim()) return '';
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address.trim());
+}
 
 onMounted(async () => {
   if (isAuthenticated.value) {
     await refreshUser();
+  }
+  if (!user.value?.isMaster && !user.value?.isAdmin) {
+    try {
+      masters.value = await api.get('/appointments/masters') || [];
+    } catch {
+      masters.value = [];
+    }
   }
   userReady.value = true;
 });
 
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
 const isAdmin = computed(() => !!user.value?.isAdmin);
+
+const firstMasterWithAddress = computed(() => masters.value.find((m) => m.address?.trim()) || null);
 
 const iconV = 'v=3';
 const adminNavItems = [
@@ -79,6 +95,22 @@ function handleLogout() {
       <p class="text-[var(--tg-theme-hint-color,#999)] mb-6">
         {{ isMasterOrAdmin ? (isAdmin ? 'Просмотр и управление данными мастеров' : 'Управление студией маникюра') : 'Записывайтесь и смотрите свои визиты' }}
       </p>
+
+      <div
+        v-if="!isMasterOrAdmin && firstMasterWithAddress"
+        class="mb-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
+      >
+        <div class="text-sm font-medium text-[var(--tg-theme-hint-color,#999)] mb-1">Адрес студии</div>
+        <a
+          :href="getGoogleMapsUrl(firstMasterWithAddress.address)"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-[var(--tg-theme-link-color,#2481cc)] underline break-words"
+          @click="hapticFeedback?.('light')"
+        >
+          {{ firstMasterWithAddress.address }}
+        </a>
+      </div>
 
       <div class="grid gap-3">
         <template v-if="isMasterOrAdmin">

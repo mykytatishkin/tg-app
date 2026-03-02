@@ -20,6 +20,7 @@ import { Client } from '../crm/entities/client.entity';
 import { Suggestion, SUGGESTION_STATUS_LABELS, type SuggestionStatus } from '../suggestions/entities/suggestion.entity';
 import { User } from '../auth/entities/user.entity';
 import { parseDateTimeInVilnius, formatDateTimeForNotification } from '../shared/timezone.util';
+import { getClickableAddressHtml } from '../shared/maps.util';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
@@ -548,13 +549,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     chatId: string,
     appointmentId: string,
     drinkOptions: string[],
+    address?: string,
   ): Promise<boolean> {
     if (!this.bot || !drinkOptions.length) return false;
     try {
       const rows = drinkOptions.map((label, idx) => [
         Markup.button.callback(label, `${DRINK_CB_PREFIX}${appointmentId}|${idx}`),
       ]);
-      await this.bot.telegram.sendMessage(chatId, 'приветик! у тебя скоро запись, будешь что-то пить?', {
+      let text = 'приветик! у тебя скоро запись, будешь что-то пить?';
+      if (address?.trim()) text += getClickableAddressHtml(address).replace(/^ /, ' Адрес:');
+      await this.bot.telegram.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
         reply_markup: { inline_keyboard: rows },
       });
       return true;
@@ -722,6 +727,29 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return true;
     } catch (err) {
       console.error('Bot sendMessageWithWebAppButtons error:', err);
+      return false;
+    }
+  }
+
+  /** Send a message with URL buttons (open in browser: e.g. Google Maps, Google Calendar). */
+  async sendMessageWithUrlButtons(
+    chatId: string,
+    text: string,
+    buttons: { label: string; url: string }[],
+  ): Promise<boolean> {
+    if (!this.bot || !buttons.length) return false;
+    try {
+      const rows: { text: string; url: string }[][] = [];
+      for (let i = 0; i < buttons.length; i += 2) {
+        rows.push(buttons.slice(i, i + 2).map((b) => ({ text: b.label, url: b.url })));
+      }
+      await this.bot.telegram.sendMessage(chatId, text, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: rows },
+      });
+      return true;
+    } catch (err) {
+      console.error('Bot sendMessageWithUrlButtons error:', err);
       return false;
     }
   }

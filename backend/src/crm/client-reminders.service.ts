@@ -8,6 +8,7 @@ import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { User } from '../auth/entities/user.entity';
 import { BotService } from '../bot/bot.service';
 import { getTodayInVilnius } from '../shared/timezone.util';
+import { getClickableAddressHtml } from '../shared/maps.util';
 
 const INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 h
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000; // 14 суток
@@ -116,14 +117,21 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
 
       const isThreeWeeksOrMore = lastVisitEndOfDay + THREE_WEEKS_MS <= now;
 
+      const master = await this.userRepo.findOne({
+        where: { id: client.masterId },
+        select: ['address'],
+      });
+      const masterAddress = master?.address?.trim() || '';
+
       if (isThreeWeeksOrMore && bookingBaseUrl) {
-        const sent = await this.sendSmartReminderWithSlots(client, bookingBaseUrl);
+        const sent = await this.sendSmartReminderWithSlots(client, bookingBaseUrl, masterAddress);
         if (sent) {
           await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
           sentToTelegramIdsThisRun.add(tgId);
         }
       } else {
-        const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру. Ждём вас!`;
+        const addressPart = masterAddress ? ` Ждём вас по адресу:${getClickableAddressHtml(masterAddress)}` : ' Ждём вас!';
+        const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру.${addressPart}`;
         const sent = bookingBaseUrl
           ? await this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingBaseUrl)
           : await this.botService.sendMessage(tgId, text);
@@ -139,6 +147,7 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
   private async sendSmartReminderWithSlots(
     client: { id: string; name: string | null; telegramId: string | null; masterId: string },
     bookingBaseUrl: string,
+    masterAddress?: string,
   ): Promise<boolean> {
     const tgId = client.telegramId?.trim();
     if (!tgId) return false;
@@ -211,9 +220,10 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       buttons.push({ label, url });
     }
 
-    const intro = preferredWeekdays.size || preferredTimeBuckets.size
+    let intro = preferredWeekdays.size || preferredTimeBuckets.size
       ? 'приветик! прошло уже совсем много времени, вот ближайшие окошки для записи, время обновить ноготочки!'
       : 'Прошло уже больше 3 недель с последнего визита. Выберите удобное время:';
+    if (masterAddress) intro += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
     const text = intro;
 
     if (buttons.length > 0) {
@@ -231,9 +241,15 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
   }): Promise<boolean> {
     const tgId = client.telegramId?.trim();
     if (!tgId) return false;
+    const master = await this.userRepo.findOne({
+      where: { id: client.masterId },
+      select: ['address'],
+    });
+    const masterAddress = master?.address?.trim() || '';
     const appUrl = this.configService.get<string>('MINI_APP_URL');
     const bookingUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
-    const text = 'приветик! прошло уже 2 недели, пора записаться на коррекцию ноготочков';
+    let text = 'приветик! прошло уже 2 недели, пора записаться на коррекцию ноготочков';
+    if (masterAddress) text += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
     if (bookingUrl) {
       return this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingUrl);
     }
@@ -250,6 +266,11 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     const appUrl = this.configService.get<string>('MINI_APP_URL');
     const bookingBaseUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
     if (!bookingBaseUrl) return false;
-    return this.sendSmartReminderWithSlots(client, bookingBaseUrl);
+    const master = await this.userRepo.findOne({
+      where: { id: client.masterId },
+      select: ['address'],
+    });
+    const masterAddress = master?.address?.trim() || '';
+    return this.sendSmartReminderWithSlots(client, bookingBaseUrl, masterAddress);
   }
 }

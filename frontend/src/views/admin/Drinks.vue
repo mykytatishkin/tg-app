@@ -14,6 +14,7 @@ const { isAdmin, masters, selectedMasterId, selectedMasterName, loadMasters } = 
 
 const options = ref([]);
 const newOption = ref('');
+const address = ref('');
 const saving = ref(false);
 const error = ref(null);
 const loading = ref(true);
@@ -21,6 +22,7 @@ const loading = ref(true);
 async function loadMyDrinks() {
   await refreshUser();
   options.value = Array.isArray(user.value?.drinkOptions) ? [...user.value.drinkOptions] : [];
+  address.value = user.value?.address ?? '';
 }
 
 async function loadMasterDrinks(masterId) {
@@ -29,9 +31,11 @@ async function loadMasterDrinks(masterId) {
   try {
     const data = await api.get(`/auth/users/${masterId}`);
     options.value = Array.isArray(data?.drinkOptions) ? [...data.drinkOptions] : [];
+    address.value = data?.address ?? '';
   } catch (e) {
     error.value = e.message;
     options.value = [];
+    address.value = '';
   } finally {
     loading.value = false;
   }
@@ -85,10 +89,11 @@ async function save() {
   saving.value = true;
   error.value = null;
   try {
+    const payload = { drinkOptions: options.value, address: address.value?.trim() || undefined };
     if (isAdmin.value && selectedMasterId.value) {
-      await api.patch(`/auth/users/${selectedMasterId.value}`, { drinkOptions: options.value });
+      await api.patch(`/auth/users/${selectedMasterId.value}`, payload);
     } else {
-      await api.patch('/auth/me', { drinkOptions: options.value });
+      await api.patch('/auth/me', payload);
       await refreshUser();
     }
     error.value = null;
@@ -147,6 +152,18 @@ watch(selectedMasterId, load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)] mb-4">Загрузка…</div>
 
     <div class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)] space-y-3">
+      <label for="address-input" class="block text-sm font-medium text-[var(--tg-theme-text-color)]">Адрес студии</label>
+      <input
+        id="address-input"
+        v-model="address"
+        type="text"
+        placeholder="Напр. ул. Примерная, 1"
+        class="w-full min-w-0 p-3 rounded-lg bg-[var(--tg-theme-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
+      >
+      <p class="text-xs text-[var(--tg-theme-hint-color,#999)]">Отображается в напоминаниях клиентам о записи</p>
+    </div>
+
+    <div class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)] space-y-3">
       <label for="drink-option-input" class="block text-sm font-medium text-[var(--tg-theme-text-color)]">Добавить вариант</label>
       <div class="flex flex-col gap-2">
         <input
@@ -192,7 +209,7 @@ watch(selectedMasterId, load);
       :disabled="saving"
       @click="save"
     >
-      {{ saving ? 'Сохраняю…' : 'Сохранить список' }}
+      {{ saving ? 'Сохраняю…' : 'Сохранить' }}
     </button>
     </template>
   </div>

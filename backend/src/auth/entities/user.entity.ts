@@ -51,6 +51,10 @@ export class User {
   @Column({ type: 'json', nullable: true })
   drinkOptions: string[] | null;
 
+  /** Адрес студии (отображается в напоминаниях клиентам). */
+  @Column({ type: 'varchar', nullable: true })
+  address: string | null;
+
   /** Варианты «что понравилось» для отзыва после сеанса. */
   @Column({ type: 'json', nullable: true })
   feedbackOptions: string[] | null;
