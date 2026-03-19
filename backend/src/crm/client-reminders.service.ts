@@ -131,7 +131,9 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
         }
       } else {
         const addressPart = masterAddress ? ` Ждём вас по адресу:${getClickableAddressHtml(masterAddress)}` : ' Ждём вас!';
-        const text = `👋 ${client.name || 'Добрый день'}! Прошло уже 2 недели с последнего визита — пора обновить маникюр или записаться на любимую процедуру.${addressPart}`;
+        const text = `приветик, ${client.name || 'приветик'}!! напоминаю, что пришло время записаться на ноготочки💓 
+сейчас как раз у тебя есть шанс выиграть 40€, угадав пароль от сейфа
+шанс выйграть с каждым днем увеличивается 🙈${addressPart}`;
         const sent = bookingBaseUrl
           ? await this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingBaseUrl)
           : await this.botService.sendMessage(tgId, text);
@@ -220,11 +222,10 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       buttons.push({ label, url });
     }
 
-    let intro = preferredWeekdays.size || preferredTimeBuckets.size
-      ? 'приветик! прошло уже совсем много времени, вот ближайшие окошки для записи, время обновить ноготочки!'
-      : 'Прошло уже больше 3 недель с последнего визита. Выберите удобное время:';
-    if (masterAddress) intro += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
-    const text = intro;
+    let text = `приветик! напоминаю, что пришло время записаться на ноготочки💓 
+сейчас как раз у тебя есть шанс выиграть 40€, угадав пароль от сейфа
+шанс выйграть с каждым днем увеличивается 🙈`;
+    if (masterAddress) text += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
 
     if (buttons.length > 0) {
       return this.botService.sendMessageWithWebAppButtons(tgId, text, buttons);
@@ -248,7 +249,9 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
     const masterAddress = master?.address?.trim() || '';
     const appUrl = this.configService.get<string>('MINI_APP_URL');
     const bookingUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
-    let text = 'приветик! прошло уже 2 недели, пора записаться на коррекцию ноготочков';
+    let text = `приветик! напоминаю, что пришло время записаться на ноготочки💓 
+сейчас как раз у тебя есть шанс выиграть 40€, угадав пароль от сейфа
+шанс выйграть с каждым днем увеличивается 🙈`;
     if (masterAddress) text += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
     if (bookingUrl) {
       return this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingUrl);
