@@ -657,17 +657,17 @@ watch(selectedMasterId, load);
               Процедура: {{ s.service.name }}
             </div>
           </div>
-          <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+          <div class="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
             <button
               type="button"
-              class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+              class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] min-w-0"
               @click.stop="openEditForm(s)"
             >
               Редактировать
             </button>
             <button
               type="button"
-              class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
+              class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50 min-w-0"
               :disabled="deletingId === s.id"
               @click.stop="removeSlot(s.id)"
             >
@@ -675,7 +675,7 @@ watch(selectedMasterId, load);
             </button>
             <button
               type="button"
-              class="text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50"
+              class="col-span-2 text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50 text-center"
               :disabled="togglingAlternativeId === s.id || s.isBooked"
               @click.stop="toggleAlternativeBooking(s)"
             >
@@ -721,17 +721,17 @@ watch(selectedMasterId, load);
                     Процедура: {{ s.service.name }}
                   </div>
                 </div>
-                <div class="flex items-center gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
                   <button
                     type="button"
-                    class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+                    class="text-sm px-3 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] min-w-0"
                     @click.stop="openEditForm(s)"
                   >
                     Редактировать
                   </button>
                   <button
                     type="button"
-                    class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50"
+                    class="text-sm px-3 py-2 rounded-lg bg-neutral-800 text-neutral-300 disabled:opacity-50 min-w-0"
                     :disabled="deletingId === s.id"
                     @click.stop="removeSlot(s.id)"
                   >
@@ -739,7 +739,7 @@ watch(selectedMasterId, load);
                   </button>
                   <button
                     type="button"
-                    class="text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50"
+                    class="col-span-2 text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50 text-center"
                     :disabled="togglingAlternativeId === s.id || s.isBooked"
                     @click.stop="toggleAlternativeBooking(s)"
                   >
