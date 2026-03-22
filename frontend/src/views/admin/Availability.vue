@@ -56,6 +56,7 @@ const form = ref({ date: '', startTime: '09:00', endTime: '11:00', priceModifier
 const modelServices = ref([]);
 const submitting = ref(false);
 const deletingId = ref(null);
+const togglingAlternativeId = ref(null);
 const lastAdded = ref(null);
 const editingSlotId = ref(null);
 
@@ -70,7 +71,7 @@ const filteredSlots = computed(() => {
     list = list.filter((s) => getSlotDateClass(s.date) !== 'past');
   }
   if (showOnlyUnbooked.value) {
-    list = list.filter((s) => getSlotDateClass(s.date) !== 'past' && !s.isBooked);
+    list = list.filter((s) => getSlotDateClass(s.date) !== 'past' && !s.isBooked && s.isAvailable);
   }
   return list;
 });
@@ -264,6 +265,20 @@ async function removeSlot(id) {
     error.value = e.message;
   } finally {
     deletingId.value = null;
+  }
+}
+
+async function toggleAlternativeBooking(slot) {
+  togglingAlternativeId.value = slot.id;
+  error.value = null;
+  try {
+    await api.put(`/crm/availability/${slot.id}`, { isAvailable: !slot.isAvailable });
+    hapticFeedback?.('light');
+    await load();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    togglingAlternativeId.value = null;
   }
 }
 
@@ -621,7 +636,7 @@ watch(selectedMasterId, load);
           class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
           :class="[
             'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
-            { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
+            { 'opacity-60': s.isBooked || !s.isAvailable, 'cursor-pointer': s.isBooked && s.appointmentId },
             getSlotDateClass(s.date) === 'past' && 'border-red-500',
             getSlotDateClass(s.date) === 'soon' && 'border-green-500',
             getSlotDateClass(s.date) == null && 'border-transparent'
@@ -636,7 +651,7 @@ watch(selectedMasterId, load);
               <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
                 {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
               </span>
-              <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+              <span v-if="!s.isAvailable" class="text-neutral-500"> (альтернативная запись)</span>
             </div>
             <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
               Процедура: {{ s.service.name }}
@@ -658,6 +673,14 @@ watch(selectedMasterId, load);
             >
               Удалить
             </button>
+            <button
+              type="button"
+              class="text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50"
+              :disabled="togglingAlternativeId === s.id || s.isBooked"
+              @click.stop="toggleAlternativeBooking(s)"
+            >
+              {{ togglingAlternativeId === s.id ? 'Сохраняю…' : (s.isAvailable ? 'Альтернативная запись' : 'Сделать свободным') }}
+            </button>
           </div>
         </li>
       </ul>
@@ -676,7 +699,7 @@ watch(selectedMasterId, load);
                 class="p-4 rounded-xl flex flex-col gap-3 transition-opacity border-l-4"
                 :class="[
                   'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]',
-                  { 'opacity-60': s.isBooked, 'cursor-pointer': s.isBooked && s.appointmentId },
+                  { 'opacity-60': s.isBooked || !s.isAvailable, 'cursor-pointer': s.isBooked && s.appointmentId },
                   getSlotDateClass(s.date) === 'past' && 'border-red-500',
                   getSlotDateClass(s.date) === 'soon' && 'border-green-500',
                   getSlotDateClass(s.date) == null && 'border-transparent'
@@ -692,7 +715,7 @@ watch(selectedMasterId, load);
                     <span v-if="s.priceModifier != null && Number(s.priceModifier) !== 0" :class="Number(s.priceModifier) < 0 ? 'text-neutral-400' : 'text-neutral-500'">
                       {{ Number(s.priceModifier) > 0 ? '+' : '' }}{{ s.priceModifier }} €
                     </span>
-                    <span v-if="!s.isAvailable" class="text-neutral-500"> (unavailable)</span>
+                    <span v-if="!s.isAvailable" class="text-neutral-500"> (альтернативная запись)</span>
                   </div>
                   <div v-if="s.forModels && s.service" class="text-sm mt-1 text-[var(--tg-theme-text-color,#000)] font-medium">
                     Процедура: {{ s.service.name }}
@@ -713,6 +736,14 @@ watch(selectedMasterId, load);
                     @click.stop="removeSlot(s.id)"
                   >
                     Удалить
+                  </button>
+                  <button
+                    type="button"
+                    class="text-sm px-3 py-2 rounded-lg bg-neutral-700 text-neutral-100 disabled:opacity-50"
+                    :disabled="togglingAlternativeId === s.id || s.isBooked"
+                    @click.stop="toggleAlternativeBooking(s)"
+                  >
+                    {{ togglingAlternativeId === s.id ? 'Сохраняю…' : (s.isAvailable ? 'Альтернативная запись' : 'Сделать свободным') }}
                   </button>
                 </div>
               </li>

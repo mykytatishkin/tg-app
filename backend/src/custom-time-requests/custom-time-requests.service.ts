@@ -85,6 +85,50 @@ export class CustomTimeRequestsService {
     return start1 < end2 && start2 < end1;
   }
 
+  /**
+   * Custom time must not overlap master availability windows or scheduled appointments on that day.
+   * Times must be normalized to HH:mm.
+   */
+  private async assertCustomTimeRangeFree(
+    masterId: string,
+    date: string,
+    startTime: string,
+    endTime: string,
+  ): Promise<void> {
+    const startMin = this.timeToMinutes(startTime);
+    const endMin = this.timeToMinutes(endTime);
+    if (startMin >= endMin) {
+      throw new BadRequestException('Некорректное время в запросе');
+    }
+
+    const existingSlots = await this.slotRepo.find({
+      where: { masterId, date },
+      select: ['id', 'startTime', 'endTime'],
+    });
+    for (const s of existingSlots) {
+      const sStart = this.timeToMinutes(s.startTime);
+      const sEnd = this.timeToMinutes(s.endTime);
+      if (this.timeRangesOverlap(startMin, endMin, sStart, sEnd)) {
+        throw new BadRequestException(
+          'Это время пересекается с уже созданным окном мастера. Выберите другое время.',
+        );
+      }
+    }
+
+    const existingAppointments = await this.appointmentRepo.find({
+      where: { masterId, date, status: AppointmentStatus.SCHEDULED },
+      relations: ['service'],
+    });
+    for (const a of existingAppointments) {
+      const aStart = this.timeToMinutes(a.startTime);
+      const dur = a.service?.durationMinutes ?? 60;
+      const aEnd = aStart + dur;
+      if (this.timeRangesOverlap(startMin, endMin, aStart, aEnd)) {
+        throw new BadRequestException('Это время уже занято другой записью');
+      }
+    }
+  }
+
   async create(user: User, dto: CreateCustomTimeRequestDto) {
     const master = await this.userRepo.findOne({
       where: { id: dto.masterId, isMaster: true },
@@ -121,6 +165,10 @@ export class CustomTimeRequestsService {
     }
     const durationMinutes = service.durationMinutes ?? 60;
     const endTime = this.addMinutesToTime(startTime, durationMinutes);
+
+    const startNorm = startTime.slice(0, 5);
+    const endNorm = endTime.slice(0, 5);
+    await this.assertCustomTimeRangeFree(dto.masterId, requestedDate, startNorm, endNorm);
 
     const feeAmount = this.getFeeForDate(requestedDate);
 
@@ -236,36 +284,7 @@ export class CustomTimeRequestsService {
     const date = request.requestedDate;
     const startTime = (request.requestedStartTime ?? '').slice(0, 5);
     const endTime = (request.requestedEndTime ?? '').slice(0, 5);
-    const startMin = this.timeToMinutes(startTime);
-    const endMin = this.timeToMinutes(endTime);
-    if (startMin >= endMin) {
-      throw new BadRequestException('Некорректное время в запросе');
-    }
-
-    const existingSlots = await this.slotRepo.find({
-      where: { masterId, date },
-      select: ['id', 'startTime', 'endTime'],
-    });
-    for (const s of existingSlots) {
-      const sStart = this.timeToMinutes(s.startTime);
-      const sEnd = this.timeToMinutes(s.endTime);
-      if (this.timeRangesOverlap(startMin, endMin, sStart, sEnd)) {
-        throw new BadRequestException('Это время уже занято другим слотом');
-      }
-    }
-
-    const existingAppointments = await this.appointmentRepo.find({
-      where: { masterId, date, status: AppointmentStatus.SCHEDULED },
-      relations: ['service'],
-    });
-    for (const a of existingAppointments) {
-      const aStart = this.timeToMinutes(a.startTime);
-      const dur = a.service?.durationMinutes ?? 60;
-      const aEnd = aStart + dur;
-      if (this.timeRangesOverlap(startMin, endMin, aStart, aEnd)) {
-        throw new BadRequestException('Это время уже занято другой записью');
-      }
-    }
+    await this.assertCustomTimeRangeFree(masterId, date, startTime, endTime);
 
     const slot = this.slotRepo.create({
       masterId,
