@@ -47,10 +47,6 @@ export class User {
   @Column({ default: false })
   isAdmin: boolean;
 
-  /** Варианты напитков для клиента перед сеансом (кнопки в напоминании). */
-  @Column({ type: 'json', nullable: true })
-  drinkOptions: string[] | null;
-
   /** Адрес студии (отображается в напоминаниях клиентам). */
   @Column({ type: 'varchar', nullable: true })
   address: string | null;

@@ -24,7 +24,6 @@ import { getClickableAddressHtml } from '../shared/maps.util';
 
 const QUICK_TEST_IMAGE_PATH = path.join(process.cwd(), 'assets', 'quick-test-heart.png');
 const QT_CB_PREFIX = 'qt_';
-const DRINK_CB_PREFIX = 'drink_';
 const FEEDBACK_CB_PREFIX = 'feedback_';
 const PS_CB_PREFIX = 'ps_';
 
@@ -389,59 +388,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return sendQuestion(ctx, 0);
     });
 
-    // Выбор варианта ответа кнопкой (callback qt_step_optionIndex)
-    // Выбор напитка клиентом перед сеансом → уведомление мастеру
-    this.bot.action(new RegExp(`^${DRINK_CB_PREFIX}`), async (ctx) => {
-      const data = (ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : '') ?? '';
-      if (!data.startsWith(DRINK_CB_PREFIX)) return;
-      const payload = data.slice(DRINK_CB_PREFIX.length);
-      const sep = payload.indexOf('|');
-      if (sep === -1) return;
-      const appointmentId = payload.slice(0, sep);
-      const optionIndex = parseInt(payload.slice(sep + 1), 10);
-      await ctx.answerCbQuery();
-
-      const appointment = await this.appointmentRepo.findOne({
-        where: { id: appointmentId, status: AppointmentStatus.SCHEDULED },
-        relations: ['client', 'master'],
-      });
-      if (!appointment?.master?.telegramId) return;
-
-      const options = (appointment.master as { drinkOptions?: string[] | null }).drinkOptions ?? [];
-      const optionText = options[optionIndex] ?? 'напиток';
-      const clientName = appointment.client?.name ?? 'Клиент';
-      const clientUsername = appointment.client?.username?.trim();
-      const mention = clientUsername ? `@${clientUsername}` : clientName;
-
-      const apptDate = parseDateTimeInVilnius(appointment.date, appointment.startTime || '00:00');
-      const minutesLeft = Math.max(0, Math.round((apptDate.getTime() - Date.now()) / 60000));
-      const masterText = `${mention} будет через ${minutesLeft} мин и желает выпить <b>${escapeHtml(optionText)}</b>.`;
-      await this.sendMessage(appointment.master.telegramId, masterText);
-
-      await this.appointmentRepo.update(
-        { id: appointmentId },
-        { selectedDrinkLabel: optionText },
-      );
-
-      // Подтверждение клиенту: убираем кнопки и пишем, что напиток будет готов
-      const msg = ctx.callbackQuery?.message && 'message_id' in ctx.callbackQuery.message ? ctx.callbackQuery.message : null;
-      if (this.bot && msg) {
-        const chatId = (msg as { chat?: { id?: number } }).chat?.id;
-        const messageId = (msg as { message_id?: number }).message_id;
-        if (chatId != null && messageId != null) {
-          const clientConfirmText = `Отлично! «${escapeHtml(optionText)}» будет готов к вашему сеансу.`;
-          try {
-            await this.bot.telegram.editMessageText(chatId, messageId, undefined, clientConfirmText, {
-              parse_mode: 'HTML',
-              reply_markup: { inline_keyboard: [] },
-            });
-          } catch (e) {
-            console.warn('Bot editMessageText drink confirm:', e);
-          }
-        }
-      }
-    });
-
     this.bot.action(/^qt_(\d+)_(\d+)$/, async (ctx) => {
       const key = getSessionKey(ctx);
       const state = key ? quickTestSessions.get(key) : undefined;
@@ -540,31 +486,6 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       if (msg?.includes("can't initiate") || msg?.includes('blocked') || msg?.includes('deactivated')) {
         console.warn(`User ${chatId} must start the bot first (send /start in chat with the bot).`);
       }
-      return false;
-    }
-  }
-
-  /** Напоминание клиенту за 5–10 мин: «приветик! у тебя скоро запись, будешь что-то пить?» + кнопки напитков. */
-  async sendDrinkReminderToClient(
-    chatId: string,
-    appointmentId: string,
-    drinkOptions: string[],
-    address?: string,
-  ): Promise<boolean> {
-    if (!this.bot || !drinkOptions.length) return false;
-    try {
-      const rows = drinkOptions.map((label, idx) => [
-        Markup.button.callback(label, `${DRINK_CB_PREFIX}${appointmentId}|${idx}`),
-      ]);
-      let text = 'приветик! у тебя скоро запись, будешь что-то пить?';
-      if (address?.trim()) text += getClickableAddressHtml(address).replace(/^ /, ' Адрес:');
-      await this.bot.telegram.sendMessage(chatId, text, {
-        parse_mode: 'HTML',
-        reply_markup: { inline_keyboard: rows },
-      });
-      return true;
-    } catch (err) {
-      console.error('Bot sendDrinkReminderToClient error:', err);
       return false;
     }
   }

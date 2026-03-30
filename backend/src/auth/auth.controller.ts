@@ -29,10 +29,9 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async updateMe(
     @Request() req: { user: import('./entities/user.entity').User },
-    @Body() body: { drinkOptions?: string[]; address?: string },
+    @Body() body: { address?: string },
   ) {
     return this.authService.updateMe(req.user.id, {
-      drinkOptions: body.drinkOptions,
       address: body.address,
     });
   }
@@ -53,10 +52,9 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, AdminOnlyGuard)
   async updateUser(
     @Param('id') id: string,
-    @Body() body: { drinkOptions?: string[]; address?: string; isAdmin?: boolean; isMaster?: boolean },
+    @Body() body: { address?: string; isAdmin?: boolean; isMaster?: boolean },
   ) {
-    const updates: { drinkOptions?: string[]; address?: string; isAdmin?: boolean; isMaster?: boolean } = {};
-    if (body.drinkOptions !== undefined) updates.drinkOptions = body.drinkOptions;
+    const updates: { address?: string; isAdmin?: boolean; isMaster?: boolean } = {};
     if (body.address !== undefined) updates.address = body.address;
     if (body.isAdmin !== undefined) updates.isAdmin = body.isAdmin;
     if (body.isMaster !== undefined) updates.isMaster = body.isMaster;

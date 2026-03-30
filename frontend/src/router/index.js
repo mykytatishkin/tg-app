@@ -74,12 +74,6 @@ const routes = [
     meta: { requiresAuth: true, requiresMaster: true },
   },
   {
-    path: '/admin/drinks',
-    name: 'AdminDrinks',
-    component: () => import('../views/admin/Drinks.vue'),
-    meta: { requiresAuth: true, requiresMaster: true },
-  },
-  {
     path: '/admin/backups',
     name: 'AdminBackups',
     component: () => import('../views/admin/Backups.vue'),

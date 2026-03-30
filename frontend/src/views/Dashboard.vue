@@ -3,14 +3,13 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
-import { api } from '../api/client';
 
 const router = useRouter();
 const { user, logout, refreshUser, isAuthenticated } = useAuth();
 const { hapticFeedback } = useTelegramWebApp();
 
 const userReady = ref(false);
-const masters = ref([]);
+const studioAddress = 'Spaudos Rumai Vilnius';
 
 function getGoogleMapsUrl(address) {
   if (!address?.trim()) return '';
@@ -21,20 +20,11 @@ onMounted(async () => {
   if (isAuthenticated.value) {
     await refreshUser();
   }
-  if (!user.value?.isMaster && !user.value?.isAdmin) {
-    try {
-      masters.value = await api.get('/appointments/masters') || [];
-    } catch {
-      masters.value = [];
-    }
-  }
   userReady.value = true;
 });
 
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
 const isAdmin = computed(() => !!user.value?.isAdmin);
-
-const firstMasterWithAddress = computed(() => masters.value.find((m) => m.address?.trim()) || null);
 
 const iconV = 'v=3';
 const adminNavItems = [
@@ -44,7 +34,6 @@ const adminNavItems = [
   { path: '/admin/appointments', label: 'Записи', icon: `/icons/appointments.png?${iconV}` },
   { path: '/admin/availability', label: 'Окошки', icon: `/icons/availability.png?${iconV}` },
   { path: '/admin/custom-time-requests', label: 'Запросы своего времени', icon: '🕐' },
-  { path: '/admin/drinks', label: 'Напитки', icon: `/icons/drinks.png?${iconV}` },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
   { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
   { path: '/admin/broadcast', label: 'Рассылка', icon: '📢', adminOnly: true },
@@ -97,18 +86,18 @@ function handleLogout() {
       </p>
 
       <div
-        v-if="!isMasterOrAdmin && firstMasterWithAddress"
+        v-if="!isMasterOrAdmin"
         class="mb-4 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
       >
         <div class="text-sm font-medium text-[var(--tg-theme-hint-color,#999)] mb-1">Адрес студии</div>
         <a
-          :href="getGoogleMapsUrl(firstMasterWithAddress.address)"
+          :href="getGoogleMapsUrl(studioAddress)"
           target="_blank"
           rel="noopener noreferrer"
           class="text-[var(--tg-theme-link-color,#2481cc)] underline break-words"
           @click="hapticFeedback?.('light')"
         >
-          {{ firstMasterWithAddress.address }}
+          {{ studioAddress }}
         </a>
       </div>
 

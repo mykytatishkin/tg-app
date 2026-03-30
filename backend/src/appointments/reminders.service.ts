@@ -88,16 +88,11 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
 
         const minutesUntil = (appointmentDateTime.getTime() - now.getTime()) / 60000;
         if (minutesUntil <= 10 && minutesUntil >= 0 && !a.preSessionReminderSentAt) {
-          const master = a.master as { drinkOptions?: string[] | null; address?: string | null; telegramId?: string } | undefined;
-          const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
-          const preSessionAddress = master?.address?.trim() || '';
+          const preSessionAddress = masterAddress;
           const preSessionText = preSessionAddress
             ? `приветик! у тебя скоро запись! Адрес:${getClickableAddressHtml(preSessionAddress)}`
             : 'приветик! у тебя скоро запись!';
-          const drinkSent =
-            drinkOptions.length > 0
-              ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions, preSessionAddress || undefined)
-              : await this.botService.sendMessage(clientTgId, preSessionText);
+          const clientPreSent = await this.botService.sendMessage(clientTgId, preSessionText);
           let masterPreSent = true;
           if (masterTgId) {
             const clientUsername = a.client?.username?.trim();
@@ -108,7 +103,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
               `⏰ Через ${minutesLeft} мин сеанс с ${mention}.`,
             );
           }
-          preSessionOk = drinkSent && masterPreSent;
+          preSessionOk = clientPreSent && masterPreSent;
         }
       }
       if (masterTgId) {
@@ -127,7 +122,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Напоминание за 5–10 мин до сеанса: «желаете что-то выпить?» + кнопки напитков мастера. */
+  /** Напоминание за 5–10 мин до сеанса. */
   private async sendPreSessionReminders() {
     const now = new Date();
     const in5min = new Date(now.getTime() + PRE_SESSION_WINDOW_MIN * 60 * 1000);
@@ -148,18 +143,13 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const clientTgId = a.client?.telegramId?.trim() || null;
       if (!clientTgId) continue;
 
-      const master = a.master as { drinkOptions?: string[] | null; address?: string | null; telegramId?: string } | undefined;
-      const drinkOptions = Array.isArray(master?.drinkOptions) ? master.drinkOptions : [];
-      const masterTgId = master?.telegramId?.trim() || null;
-      const masterAddress = master?.address?.trim() || '';
+      const masterTgId = (a.master as { telegramId?: string } | undefined)?.telegramId?.trim() || null;
+      const masterAddress = (a.master as { address?: string | null } | undefined)?.address?.trim() || '';
       const preSessionText = masterAddress
         ? `приветик! у тебя скоро запись! Адрес:${getClickableAddressHtml(masterAddress)}`
         : 'приветик! у тебя скоро запись!';
 
-      const drinkSent =
-        drinkOptions.length > 0
-          ? await this.botService.sendDrinkReminderToClient(clientTgId, a.id, drinkOptions, masterAddress || undefined)
-          : await this.botService.sendMessage(clientTgId, preSessionText);
+      const clientSent = await this.botService.sendMessage(clientTgId, preSessionText);
       let masterSent = true;
       if (masterTgId) {
         const clientName = a.client?.name ?? 'Клиент';
@@ -171,7 +161,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
           `⏰ Через ${minutesLeft} мин сеанс с ${mention}.`,
         );
       }
-      if (drinkSent && masterSent) {
+      if (clientSent && masterSent) {
         a.preSessionReminderSentAt = new Date();
         await this.appointmentRepo.save(a);
       }
