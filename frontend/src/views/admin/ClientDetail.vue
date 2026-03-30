@@ -16,6 +16,9 @@ const editForm = ref({ name: '', phone: '', username: '', instagram: '', notes: 
 const saving = ref(false);
 const reminderSending = ref(null);
 const reminderMessage = ref(null);
+const simulateSending = ref(null);
+const simulateMessage = ref(null);
+const showSimulate = ref(false);
 
 const id = computed(() => route.params.id);
 
@@ -128,6 +131,31 @@ async function sendReminder(type) {
   }
 }
 
+const simulateTypes = [
+  { key: 'appointment-reminder', label: 'Напоминание за 24ч', icon: '🕙', target: 'client' },
+  { key: 'pre-session', label: 'Скоро запись (клиенту)', icon: '⏰', target: 'client' },
+  { key: 'booking-confirmation', label: 'Подтверждение записи', icon: '✅', target: 'client' },
+  { key: 'feedback-request', label: 'Запрос отзыва', icon: '⭐', target: 'client' },
+  { key: 'discount-notification', label: 'Новые скидки', icon: '✨', target: 'client' },
+  { key: 'post-session', label: 'Приём завершён? (мастеру)', icon: '📋', target: 'master' },
+  { key: 'master-new-booking', label: 'Новая запись (мастеру)', icon: '📅', target: 'master' },
+  { key: 'master-pre-session', label: 'Скоро сеанс (мастеру)', icon: '⏰', target: 'master' },
+];
+
+async function simulateMsg(type) {
+  if (!client.value?.id) return;
+  simulateSending.value = type;
+  simulateMessage.value = null;
+  try {
+    const res = await api.post(`/crm/clients/${client.value.id}/simulate-message`, { type });
+    simulateMessage.value = res?.message ?? (res?.sent ? 'Отправлено.' : 'Не удалось отправить.');
+  } catch (e) {
+    simulateMessage.value = e.message ?? 'Ошибка отправки.';
+  } finally {
+    simulateSending.value = null;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -205,6 +233,33 @@ onMounted(load);
           Зарегистрирован, записей ещё не было. Сохраните карточку или дождитесь первой записи — тогда можно будет отправить напоминание.
         </p>
         <p v-if="reminderMessage" class="mt-2 text-sm text-[var(--tg-theme-hint-color,#999)]">{{ reminderMessage }}</p>
+
+        <div v-if="client.telegramId && !editing" class="mt-4 pt-3 border-t border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+          <button
+            type="button"
+            class="text-sm text-[var(--tg-theme-link-color,#3366cc)] underline"
+            @click="showSimulate = !showSimulate"
+          >
+            {{ showSimulate ? 'Скрыть тестовые сообщения' : 'Тестовые сообщения' }}
+          </button>
+          <div v-if="showSimulate" class="mt-3 grid grid-cols-1 gap-2">
+            <p class="text-xs text-[var(--tg-theme-hint-color,#999)] mb-1">Отправка сообщений немедленно (для тестирования):</p>
+            <button
+              v-for="st in simulateTypes"
+              :key="st.key"
+              type="button"
+              class="px-3 py-2 rounded-lg text-sm text-left disabled:opacity-50"
+              :class="st.target === 'master'
+                ? 'bg-amber-500/10 border border-amber-500/30 text-[var(--tg-theme-text-color,#000)]'
+                : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]'"
+              :disabled="simulateSending !== null"
+              @click="simulateMsg(st.key)"
+            >
+              {{ simulateSending === st.key ? 'Отправка…' : `${st.icon} ${st.label}` }}
+            </button>
+          </div>
+          <p v-if="simulateMessage" class="mt-2 text-sm text-[var(--tg-theme-hint-color,#999)]">{{ simulateMessage }}</p>
+        </div>
       </div>
 
       <form v-if="editing" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6 space-y-3" @submit.prevent="save">

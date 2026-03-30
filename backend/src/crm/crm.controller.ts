@@ -109,6 +109,15 @@ export class CrmController {
     return this.crmService.sendReminderToClient(req.user, id, type);
   }
 
+  @Post('clients/:id/simulate-message')
+  simulateMessage(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { type: string },
+  ) {
+    return this.crmService.simulateMessage(req.user, id, body.type);
+  }
+
   @Delete('clients/:id')
   deleteClient(@Request() req: { user: User }, @Param('id') id: string) {
     return this.crmService.deleteClient(req.user, id);

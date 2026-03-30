@@ -21,6 +21,10 @@ import { CreateMonthlyExpenseDto } from './dto/create-monthly-expense.dto';
 import { UpsertMonthlyExpenseDto } from './dto/upsert-monthly-expense.dto';
 import { BotService } from '../bot/bot.service';
 import { ClientRemindersService } from './client-reminders.service';
+import { ConfigService } from '@nestjs/config';
+import { formatDateTimeForNotification } from '../shared/timezone.util';
+import { getClickableAddressHtml } from '../shared/maps.util';
+import { getGoogleMapsUrl } from '../shared/maps.util';
 
 @Injectable()
 export class CrmService {
@@ -41,6 +45,7 @@ export class CrmService {
     private userRepo: Repository<User>,
     private botService: BotService,
     private clientRemindersService: ClientRemindersService,
+    private configService: ConfigService,
   ) {}
 
   private async getMasterId(user: User): Promise<string> {
@@ -466,6 +471,172 @@ export class CrmService {
         ? await this.clientRemindersService.sendSimpleReminderToClient(payload)
         : await this.clientRemindersService.sendSmartReminderToClient(payload);
     return { sent, message: sent ? 'Напоминание отправлено.' : 'Не удалось отправить (бот недоступен или клиент не начал диалог).' };
+  }
+
+  /** Simulate sending a specific message type to a client (for testing). */
+  async simulateMessage(
+    user: User,
+    clientId: string,
+    type: string,
+  ): Promise<{ sent: boolean; message: string }> {
+    const clientData = await this.getClient(user, clientId);
+    const tgId = clientData.telegramId?.trim();
+    if (!tgId) {
+      throw new BadRequestException('У клиента не указан Telegram.');
+    }
+
+    const master = await this.userRepo.findOne({
+      where: { id: clientData.masterId },
+      select: ['id', 'telegramId', 'firstName', 'lastName', 'address'],
+    });
+    const masterAddress = master?.address?.trim() || '';
+    const masterName = master ? `${master.firstName} ${master.lastName || ''}`.trim() : 'Мастер';
+    const masterTgId = master?.telegramId?.trim() || '';
+    const clientName = clientData.name ?? 'Клиент';
+    const appUrl = this.configService.get<string>('MINI_APP_URL') || '';
+    const bookingUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/appointments/book` : '';
+
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    let sent = false;
+
+    switch (type) {
+      case 'appointment-reminder': {
+        // 24h reminder: to client
+        const appt = await this.findLatestAppointment(clientData.id, clientData.masterId);
+        const dateTimeStr = appt
+          ? formatDateTimeForNotification(appt.date, appt.startTime)
+          : '2025-01-15 14:00';
+        const serviceName = appt?.service?.name ?? 'Маникюр';
+        const linkToMaster = masterTgId
+          ? `<a href="tg://user?id=${masterTgId}">${escapeHtml(masterName)}</a>`
+          : escapeHtml(masterName);
+        const addressPart = masterAddress ? ` Адрес:${getClickableAddressHtml(masterAddress)}` : '';
+        const text = `🕙Напоминание о записи: ${dateTimeStr}, ${escapeHtml(serviceName)}. Мастер: ${linkToMaster}${addressPart}`;
+        sent = await this.botService.sendMessage(tgId, text);
+        break;
+      }
+
+      case 'pre-session': {
+        // 5-10 min before: to client
+        const preText = masterAddress
+          ? `приветик! у тебя скоро запись! Адрес:${getClickableAddressHtml(masterAddress)}`
+          : 'приветик! у тебя скоро запись!';
+        sent = await this.botService.sendMessage(tgId, preText);
+        break;
+      }
+
+      case 'booking-confirmation': {
+        // Booking confirmation: to client
+        const appt = await this.findLatestAppointment(clientData.id, clientData.masterId);
+        const dateTimeStr = appt
+          ? formatDateTimeForNotification(appt.date, appt.startTime)
+          : '2025-01-15 14:00';
+        const serviceName = appt?.service?.name ?? 'Маникюр';
+        let confirmText = `✅ Вы записаны на ${dateTimeStr}, ${escapeHtml(serviceName)}.`;
+        if (masterAddress) {
+          confirmText += ` Адрес: ${escapeHtml(masterAddress)}`;
+        }
+        const buttons: { label: string; url: string }[] = [];
+        if (masterAddress) {
+          buttons.push({ label: '📍 Адрес', url: getGoogleMapsUrl(masterAddress) });
+        }
+        buttons.push({ label: '📅 Синхронизировать календарь', url: 'https://www.google.com/calendar/render?action=TEMPLATE&text=Запись' });
+        sent = await this.botService.sendMessageWithUrlButtons(tgId, confirmText, buttons);
+        break;
+      }
+
+      case 'feedback-request': {
+        // Feedback request: to client
+        const appt = await this.findLatestAppointment(clientData.id, clientData.masterId);
+        const appointmentId = appt?.id ?? 'simulate_' + Date.now();
+        sent = await this.botService.sendFeedbackRequest(
+          tgId,
+          appointmentId,
+          ['Качество работы', 'Общение', 'Атмосфера', 'Скорость'],
+        );
+        break;
+      }
+
+      case 'post-session': {
+        // Post-session question: to master
+        if (!masterTgId) {
+          return { sent: false, message: 'У мастера не указан Telegram.' };
+        }
+        const appt = await this.findLatestAppointment(clientData.id, clientData.masterId);
+        const date = appt?.date ?? '2025-01-15';
+        const startTime = appt?.startTime ?? '14:00:00';
+        const serviceName = appt?.service?.name ?? null;
+        const appointmentId = appt?.id ?? 'simulate_' + Date.now();
+        sent = await this.botService.sendPostSessionQuestion(
+          masterTgId,
+          appointmentId,
+          clientName,
+          date,
+          startTime,
+          serviceName,
+        );
+        return { sent, message: sent ? 'Сообщение отправлено мастеру.' : 'Не удалось отправить.' };
+      }
+
+      case 'discount-notification': {
+        // Discount notification: to client
+        if (!bookingUrl) {
+          return { sent: false, message: 'MINI_APP_URL не настроен.' };
+        }
+        const text = '✨ Появились новые места со скидкой! Записаться можно в разделе «Скидки» или по кнопке ниже.';
+        sent = await this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingUrl);
+        break;
+      }
+
+      case 'master-new-booking': {
+        // New booking notification: to master
+        if (!masterTgId) {
+          return { sent: false, message: 'У мастера не указан Telegram.' };
+        }
+        const appt = await this.findLatestAppointment(clientData.id, clientData.masterId);
+        const dateStr = appt ? (typeof appt.date === 'string' ? appt.date : (appt.date as Date)?.toISOString?.()?.slice(0, 10)) : '2025-01-15';
+        const timeStr = appt ? (appt.startTime || '').slice(0, 5) : '14:00';
+        const serviceName = appt?.service?.name ?? 'Маникюр';
+        const mention = tgId
+          ? `<a href="tg://user?id=${tgId}">${escapeHtml(clientName)}</a>`
+          : escapeHtml(clientName);
+        const text = `📅 Новая запись: ${dateStr} ${timeStr}, ${escapeHtml(serviceName)}. Клиент: ${mention}`;
+        sent = await this.botService.sendMessage(masterTgId, text);
+        return { sent, message: sent ? 'Сообщение отправлено мастеру.' : 'Не удалось отправить.' };
+      }
+
+      case 'master-pre-session': {
+        // Pre-session reminder: to master
+        if (!masterTgId) {
+          return { sent: false, message: 'У мастера не указан Telegram.' };
+        }
+        const clientUsername = clientData.username?.trim();
+        const mention = clientUsername ? `@${clientUsername}` : escapeHtml(clientName);
+        sent = await this.botService.sendMessage(
+          masterTgId,
+          `⏰ Через 5 мин сеанс с ${mention}.`,
+        );
+        return { sent, message: sent ? 'Сообщение отправлено мастеру.' : 'Не удалось отправить.' };
+      }
+
+      default:
+        throw new BadRequestException(`Неизвестный тип сообщения: ${type}`);
+    }
+
+    return { sent, message: sent ? 'Сообщение отправлено.' : 'Не удалось отправить.' };
+  }
+
+  private async findLatestAppointment(
+    clientId: string,
+    masterId: string,
+  ): Promise<Appointment | null> {
+    return this.appointmentRepo.findOne({
+      where: { clientId, masterId },
+      relations: ['service'],
+      order: { date: 'DESC', startTime: 'DESC' },
+    });
   }
 
   async deleteClient(user: User, id: string) {
