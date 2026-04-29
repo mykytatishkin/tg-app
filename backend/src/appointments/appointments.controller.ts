@@ -117,4 +117,18 @@ export class AppointmentsController {
   ) {
     return this.appointmentsService.cancelByClient(req.user, id, body?.reason ?? '');
   }
+
+  @Post(':id/review')
+  submitReview(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { rating: number; comment?: string },
+  ) {
+    return this.appointmentsService.submitReview(req.user, id, body.rating, body.comment ?? null);
+  }
+
+  @Get('masters/:id/profile')
+  getMasterPublicProfile(@Param('id') id: string) {
+    return this.appointmentsService.getMasterPublicProfile(id);
+  }
 }

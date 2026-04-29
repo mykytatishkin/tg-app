@@ -133,6 +133,12 @@ const routes = [
     component: () => import('../views/GiveawayDetail.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/masters/:id',
+    name: 'MasterProfile',
+    component: () => import('../views/MasterProfile.vue'),
+    meta: { requiresAuth: true },
+  },
 ];
 
 const router = createRouter({

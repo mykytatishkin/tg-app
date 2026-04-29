@@ -1,10 +1,11 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, LessThan, Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
 import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
+import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { BotService } from '../bot/bot.service';
@@ -22,6 +23,8 @@ export class AppointmentsService {
     private serviceRepo: Repository<Service>,
     @InjectRepository(Appointment)
     private appointmentRepo: Repository<Appointment>,
+    @InjectRepository(AppointmentFeedback)
+    private feedbackRepo: Repository<AppointmentFeedback>,
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
     private botService: BotService,
@@ -95,7 +98,7 @@ export class AppointmentsService {
     if (clientIds.length === 0) return [];
     return this.appointmentRepo.find({
       where: { clientId: In(clientIds) },
-      relations: ['service'],
+      relations: ['service', 'feedback'],
       order: { date: 'DESC', startTime: 'DESC' },
     });
   }
@@ -630,6 +633,80 @@ export class AppointmentsService {
     if (!isClient && !isMaster) throw new ForbiddenException('Not your appointment');
     appointment.reminderEnabled = enable;
     return this.appointmentRepo.save(appointment);
+  }
+
+  /** Submit a review for a completed appointment. One review per appointment. */
+  async submitReview(
+    user: User,
+    appointmentId: string,
+    rating: number,
+    comment: string | null,
+  ): Promise<AppointmentFeedback> {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be an integer between 1 and 5');
+    }
+    const clientIds = await this.getMyClientIds(user);
+    if (clientIds.length === 0) throw new ForbiddenException('No client record found');
+
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId, clientId: In(clientIds) },
+      relations: ['feedback'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.status !== AppointmentStatus.DONE) {
+      throw new BadRequestException('Reviews can only be left for completed appointments');
+    }
+    if (appointment.feedback) throw new BadRequestException('Review already submitted');
+
+    const feedback = this.feedbackRepo.create({
+      appointmentId,
+      rating,
+      comment: comment?.trim() || null,
+    });
+    return this.feedbackRepo.save(feedback);
+  }
+
+  /** Public master profile: name, photo, aggregated rating, last 20 reviews. */
+  async getMasterPublicProfile(masterId: string) {
+    const master = await this.userRepo.findOne({
+      where: { id: masterId, isMaster: true },
+      select: ['id', 'firstName', 'lastName', 'photoUrl', 'address'],
+    });
+    if (!master) throw new NotFoundException('Master not found');
+
+    const appointments = await this.appointmentRepo.find({
+      where: { masterId },
+      relations: ['feedback', 'service'],
+      select: ['id', 'date', 'service', 'feedback'],
+    });
+
+    const withFeedback = appointments.filter((a) => a.feedback);
+    const count = withFeedback.length;
+    const average =
+      count > 0
+        ? Math.round((withFeedback.reduce((s, a) => s + a.feedback!.rating, 0) / count) * 10) / 10
+        : null;
+
+    const reviews = withFeedback
+      .sort((a, b) => b.feedback!.createdAt.getTime() - a.feedback!.createdAt.getTime())
+      .slice(0, 20)
+      .map((a) => ({
+        rating: a.feedback!.rating,
+        comment: a.feedback!.comment,
+        serviceName: a.service?.name ?? null,
+        createdAt: a.feedback!.createdAt,
+      }));
+
+    return {
+      id: master.id,
+      firstName: master.firstName,
+      lastName: master.lastName,
+      photoUrl: master.photoUrl,
+      address: master.address,
+      averageRating: average,
+      reviewCount: count,
+      reviews,
+    };
   }
 
   /** Client cancels their own appointment. */
