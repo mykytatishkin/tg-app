@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import ReviewModal from '../components/ReviewModal.vue';
 
 const CLIENT_CANCEL_REASONS = [
   'Изменились планы',
@@ -22,6 +23,18 @@ const showCancelModal = ref(false);
 const cancelTargetId = ref(null);
 const cancelReason = ref('');
 const cancelOtherText = ref('');
+
+const reviewTarget = ref(null);
+
+function openReviewModal(appointment) {
+  hapticFeedback?.('light');
+  reviewTarget.value = appointment;
+}
+
+function onReviewDone() {
+  reviewTarget.value = null;
+  load();
+}
 
 async function load() {
   loading.value = true;
@@ -135,6 +148,26 @@ onMounted(load);
           <span v-else class="text-neutral-400 font-medium">для моделей</span>
         </div>
         <div v-if="a.note" class="text-sm mt-1">{{ a.note }}</div>
+        <div
+          v-if="a.status === 'done'"
+          class="mt-2 flex items-center gap-2 flex-wrap"
+        >
+          <span
+            v-if="a.feedback"
+            class="text-yellow-400 text-sm"
+            :title="`Ваша оценка: ${a.feedback.rating}`"
+          >
+            {{ '★'.repeat(a.feedback.rating) }}{{ '☆'.repeat(5 - a.feedback.rating) }}
+          </span>
+          <button
+            v-else
+            type="button"
+            class="text-sm px-3 py-1.5 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]"
+            @click="openReviewModal(a)"
+          >
+            Оставить отзыв
+          </button>
+        </div>
         <div v-if="a.status === 'scheduled'" class="mt-2">
           <button
             type="button"
@@ -147,6 +180,14 @@ onMounted(load);
         </div>
       </li>
     </ul>
+
+    <ReviewModal
+      v-if="reviewTarget"
+      :appointment-id="reviewTarget.id"
+      :service-name="reviewTarget.service?.name ?? null"
+      @done="onReviewDone"
+      @close="reviewTarget = null"
+    />
 
     <div
       v-if="showCancelModal"
