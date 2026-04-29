@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
+import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 
 const routes = [
   {
@@ -139,11 +140,39 @@ const routes = [
     component: () => import('../views/MasterProfile.vue'),
     meta: { requiresAuth: true },
   },
+  {
+    path: '/admin/settings',
+    name: 'AdminMasterSettings',
+    component: () => import('../views/admin/MasterSettings.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
 ];
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+router.beforeEach(async (to) => {
+  if (!to.meta.requiresAuth && !to.meta.requiresMaster) return true;
+
+  const { ensureAuth, user } = useAuth();
+  const { isAvailable } = useTelegramWebApp();
+
+  // Outside Telegram and no stored token — send to login (which shows preview stub)
+  const authed = await ensureAuth();
+  if (!authed) {
+    return { name: 'Login' };
+  }
+
+  if (to.meta.requiresMaster) {
+    const u = user.value;
+    if (!u?.isMaster && !u?.isAdmin) {
+      return { name: 'Dashboard' };
+    }
+  }
+
+  return true;
 });
 
 export default router;

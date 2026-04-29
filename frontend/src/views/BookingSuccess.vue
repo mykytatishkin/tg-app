@@ -55,7 +55,11 @@ function skipReminder() {
 }
 
 function goToAppointments() {
-  router.replace('/appointments');
+  if (webApp) {
+    webApp.close();
+  } else {
+    router.replace('/appointments');
+  }
 }
 
 async function payNow() {
@@ -93,6 +97,7 @@ async function payNow() {
 }
 
 onMounted(() => {
+  webApp?.expand();
   runConfetti();
   if (!appointmentId.value) {
     goToAppointments();
