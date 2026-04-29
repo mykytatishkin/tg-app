@@ -1,8 +1,9 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import DateCalendar from '../components/DateCalendar.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -137,6 +138,7 @@ async function loadSlots() {
   loadingSlots.value = true;
   slots.value = [];
   selectedSlot.value = null;
+  selectedDate.value = '';
   error.value = null;
   try {
     const { from, to } = getFromTo();
@@ -264,6 +266,18 @@ async function submitCustomTime() {
   }
 }
 
+const selectedDate = ref('');
+
+const slotsForSelectedDate = computed(() =>
+  slots.value.filter((s) => s.date === selectedDate.value),
+);
+
+function onDateSelected(dateStr) {
+  hapticFeedback?.('light');
+  selectedDate.value = dateStr;
+  selectedSlot.value = null;
+}
+
 const preselectedDate = ref(route.query.date ? String(route.query.date).trim() : '');
 const preselectedMasterId = ref(route.query.masterId ? String(route.query.masterId).trim() : '');
 
@@ -286,9 +300,9 @@ watch(selectedServiceId, () => {
 });
 
 watch(slots, (newSlots) => {
-  if (preselectedDate.value && newSlots.length && !selectedSlot.value) {
-    const slot = newSlots.find((s) => s.date === preselectedDate.value);
-    if (slot) selectedSlot.value = slot;
+  if (preselectedDate.value && newSlots.length && !selectedDate.value) {
+    const hasDate = newSlots.some((s) => s.date === preselectedDate.value);
+    if (hasDate) selectedDate.value = preselectedDate.value;
   }
 }, { deep: true });
 </script>
@@ -431,25 +445,37 @@ watch(slots, (newSlots) => {
           <div v-else-if="slots.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
             Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте позже.
           </div>
-          <ul v-else class="space-y-2 max-h-64 overflow-y-auto">
-            <li
-              v-for="(slot, idx) in slots"
-              :key="`${slot.date}-${slot.startTime}-${slot.slotId || idx}`"
-            >
-              <button
-                type="button"
-                class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
-                :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
-                  ? 'bg-white/10 border-2 border-[var(--tg-theme-button-text-color,#e8e8e8)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
-                  : forModelsMode
-                    ? 'bg-neutral-700/50 border border-neutral-600'
-                    : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
-                @click="selectSlot(slot)"
-              >
-                {{ formatSlotLabel(slot, forModelsMode) }}
-              </button>
-            </li>
-          </ul>
+          <template v-else>
+            <!-- Calendar grid: pick a date first -->
+            <DateCalendar
+              :slots="slots"
+              :selected-date="selectedDate"
+              :for-models="forModelsMode"
+              @select-date="onDateSelected"
+            />
+
+            <!-- Time slots for selected date -->
+            <template v-if="selectedDate">
+              <div class="mt-4 mb-1 text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Время</div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="(slot, idx) in slotsForSelectedDate"
+                  :key="`${slot.startTime}-${slot.slotId || idx}`"
+                  type="button"
+                  class="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                  :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.startTime === slot.startTime
+                    ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]'
+                    : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]'"
+                  @click="selectSlot(slot)"
+                >
+                  {{ slot.startTime?.slice(0, 5) }}
+                  <span v-if="slot.priceModifier != null && slot.priceModifier !== 0" class="text-xs opacity-70">
+                    {{ slot.priceModifier > 0 ? '+' : '' }}{{ slot.priceModifier }} €
+                  </span>
+                </button>
+              </div>
+            </template>
+          </template>
         </div>
 
         <div v-if="bookingMode === 'slot'" class="space-y-2">
