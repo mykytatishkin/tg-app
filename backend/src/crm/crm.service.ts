@@ -1,7 +1,10 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Between, LessThanOrEqual, Repository } from 'typeorm';
+import { PortfolioPhoto } from './entities/portfolio-photo.entity';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
@@ -43,6 +46,8 @@ export class CrmService {
     private scheduledBroadcastRepo: Repository<ScheduledDiscountBroadcast>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(PortfolioPhoto)
+    private portfolioRepo: Repository<PortfolioPhoto>,
     private botService: BotService,
     private clientRemindersService: ClientRemindersService,
     private configService: ConfigService,
@@ -1345,5 +1350,42 @@ export class CrmService {
 
     const feedUrl = `${baseUrl}/api/calendar/feed/${master.calendarToken}.ics`;
     return { feedUrl };
+  }
+
+  async listPortfolio(user: User): Promise<PortfolioPhoto[]> {
+    const masterId = user.isMaster ? user.id : null;
+    if (!masterId) throw new ForbiddenException('Only masters can manage portfolio');
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addPortfolioPhoto(user: User, url: string, tag: string | null): Promise<PortfolioPhoto> {
+    if (!user.isMaster) throw new ForbiddenException('Only masters can manage portfolio');
+    const photo = this.portfolioRepo.create({ masterId: user.id, url, tag: tag || null });
+    return this.portfolioRepo.save(photo);
+  }
+
+  async deletePortfolioPhoto(user: User, id: string): Promise<{ ok: boolean }> {
+    if (!user.isMaster) throw new ForbiddenException('Only masters can manage portfolio');
+    const photo = await this.portfolioRepo.findOne({ where: { id, masterId: user.id } });
+    if (!photo) throw new NotFoundException('Photo not found');
+    // Delete physical file
+    const filename = photo.url.replace(/^\/uploads\/portfolio\//, '');
+    try {
+      await unlink(join(process.cwd(), 'uploads', 'portfolio', filename));
+    } catch {
+      // File might already be gone
+    }
+    await this.portfolioRepo.remove(photo);
+    return { ok: true };
+  }
+
+  async getMasterPortfolio(masterId: string): Promise<PortfolioPhoto[]> {
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
   }
 }

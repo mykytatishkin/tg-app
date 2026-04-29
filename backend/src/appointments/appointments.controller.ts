@@ -137,6 +137,11 @@ export class AppointmentsController {
     return this.appointmentsService.getMasterPublicProfile(id);
   }
 
+  @Get('masters/:id/portfolio')
+  getMasterPortfolio(@Param('id') id: string) {
+    return this.appointmentsService.getMasterPortfolio(id);
+  }
+
   /** Webhook called by Telegram/payment provider to confirm a payment. */
   @Post('payment/confirm')
   confirmPayment(

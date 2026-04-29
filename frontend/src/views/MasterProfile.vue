@@ -9,9 +9,12 @@ const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 
 const profile = ref(null);
+const portfolio = ref([]);
 const loading = ref(true);
 const error = ref(null);
 const bioExpanded = ref(false);
+const activeTag = ref('');
+const lightboxPhoto = ref(null);
 
 const masterId = route.params.id;
 
@@ -19,7 +22,10 @@ async function load() {
   loading.value = true;
   error.value = null;
   try {
-    profile.value = await api.get(`/appointments/masters/${masterId}/profile`);
+    [profile.value, portfolio.value] = await Promise.all([
+      api.get(`/appointments/masters/${masterId}/profile`),
+      api.get(`/appointments/masters/${masterId}/portfolio`).catch(() => []),
+    ]);
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -41,6 +47,16 @@ const starsDisplay = computed(() => {
   return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
 });
 
+const portfolioTags = computed(() => {
+  const tags = new Set(portfolio.value.map((p) => p.tag).filter(Boolean));
+  return ['', ...tags];
+});
+
+const filteredPortfolio = computed(() => {
+  if (!activeTag.value) return portfolio.value;
+  return portfolio.value.filter((p) => p.tag === activeTag.value);
+});
+
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -51,6 +67,13 @@ function goBack() {
   hapticFeedback?.('light');
   router.back();
 }
+
+function setTag(tag) {
+  hapticFeedback?.('light');
+  activeTag.value = tag;
+}
+
+onMounted(load);
 </script>
 
 <template>
@@ -69,7 +92,8 @@ function goBack() {
     <p v-else-if="error" class="text-neutral-400">{{ error }}</p>
 
     <template v-else-if="profile">
-      <div class="flex items-center gap-4 mb-6 p-4 rounded-2xl bg-[var(--tg-theme-secondary-bg-color,#f5f5f5)]">
+      <!-- Master info card -->
+      <div class="flex items-center gap-4 mb-4 p-4 rounded-2xl bg-[var(--tg-theme-secondary-bg-color,#f5f5f5)]">
         <img
           v-if="profile.photoUrl"
           :src="profile.photoUrl"
@@ -115,6 +139,50 @@ function goBack() {
         </button>
       </div>
 
+      <!-- Portfolio -->
+      <template v-if="portfolio.length > 0">
+        <h2 class="text-base font-semibold mb-3">Портфолио</h2>
+
+        <!-- Tag filter pills -->
+        <div v-if="portfolioTags.length > 1" class="flex gap-2 overflow-x-auto pb-2 mb-3 no-scrollbar">
+          <button
+            v-for="tag in portfolioTags"
+            :key="tag"
+            type="button"
+            :class="[
+              'shrink-0 px-3 py-1 rounded-full text-sm font-medium transition-colors',
+              activeTag === tag
+                ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]'
+                : 'bg-[var(--tg-theme-secondary-bg-color,#f5f5f5)] text-[var(--tg-theme-text-color)]'
+            ]"
+            @click="setTag(tag)"
+          >
+            {{ tag || 'Все' }}
+          </button>
+        </div>
+
+        <!-- Photo grid -->
+        <div class="grid grid-cols-2 gap-2 mb-6">
+          <button
+            v-for="photo in filteredPortfolio"
+            :key="photo.id"
+            type="button"
+            class="relative rounded-xl overflow-hidden bg-[var(--tg-theme-secondary-bg-color)] focus:outline-none"
+            @click="lightboxPhoto = photo; hapticFeedback?.('light')"
+          >
+            <img
+              :src="photo.url"
+              :alt="photo.tag || 'Портфолио'"
+              class="w-full aspect-square object-cover"
+            />
+            <div v-if="photo.tag" class="absolute bottom-0 left-0 right-0 px-2 py-1 bg-black/50 text-white text-xs truncate">
+              {{ photo.tag }}
+            </div>
+          </button>
+        </div>
+      </template>
+
+      <!-- Reviews -->
       <template v-if="profile.reviews.length > 0">
         <h2 class="text-base font-semibold mb-3">Отзывы</h2>
         <ul class="space-y-3">
@@ -136,7 +204,36 @@ function goBack() {
           </li>
         </ul>
       </template>
-      <p v-else class="text-[var(--tg-theme-hint-color,#999)] text-sm">Отзывов пока нет.</p>
+      <p v-else-if="portfolio.length === 0" class="text-[var(--tg-theme-hint-color,#999)] text-sm">Отзывов пока нет.</p>
     </template>
+
+    <!-- Lightbox -->
+    <Teleport to="body">
+      <div
+        v-if="lightboxPhoto"
+        class="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+        @click="lightboxPhoto = null"
+      >
+        <img
+          :src="lightboxPhoto.url"
+          :alt="lightboxPhoto.tag || 'Портфолио'"
+          class="max-w-full max-h-full rounded-xl object-contain"
+          @click.stop
+        />
+        <button
+          type="button"
+          class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 text-white text-xl flex items-center justify-center"
+          @click="lightboxPhoto = null"
+        >×</button>
+        <div v-if="lightboxPhoto.tag" class="absolute bottom-6 left-0 right-0 text-center text-white text-sm">
+          {{ lightboxPhoto.tag }}
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

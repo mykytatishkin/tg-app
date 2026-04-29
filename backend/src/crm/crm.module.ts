@@ -9,6 +9,7 @@ import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
 import { Appointment } from './entities/appointment.entity';
 import { AppointmentFeedback } from './entities/appointment-feedback.entity';
+import { PortfolioPhoto } from './entities/portfolio-photo.entity';
 import { MonthlyExpense } from './entities/monthly-expense.entity';
 import { ScheduledDiscountBroadcast } from './entities/scheduled-discount-broadcast.entity';
 import { User } from '../auth/entities/user.entity';
@@ -16,7 +17,7 @@ import { BotModule } from '../bot/bot.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Client, Service, AvailabilitySlot, Appointment, AppointmentFeedback, MonthlyExpense, ScheduledDiscountBroadcast, User]),
+    TypeOrmModule.forFeature([Client, Service, AvailabilitySlot, Appointment, AppointmentFeedback, MonthlyExpense, ScheduledDiscountBroadcast, User, PortfolioPhoto]),
     BotModule,
   ],
   controllers: [CrmController],

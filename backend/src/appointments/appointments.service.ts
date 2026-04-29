@@ -8,6 +8,7 @@ import { Service } from '../crm/entities/service.entity';
 import { Appointment, AppointmentSource, AppointmentStatus, PaymentStatus } from '../crm/entities/appointment.entity';
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
+import { PortfolioPhoto } from '../crm/entities/portfolio-photo.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { BotService } from '../bot/bot.service';
 import { getTodayInVilnius, parseDateTimeInVilnius, formatDateTimeForNotification } from '../shared/timezone.util';
@@ -28,6 +29,8 @@ export class AppointmentsService {
     private feedbackRepo: Repository<AppointmentFeedback>,
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
+    @InjectRepository(PortfolioPhoto)
+    private portfolioRepo: Repository<PortfolioPhoto>,
     private botService: BotService,
     private configService: ConfigService,
   ) {}
@@ -836,5 +839,14 @@ export class AppointmentsService {
     }
 
     return saved;
+  }
+
+  async getMasterPortfolio(masterId: string) {
+    const master = await this.userRepo.findOne({ where: { id: masterId, isMaster: true } });
+    if (!master) throw new NotFoundException('Master not found');
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
   }
 }

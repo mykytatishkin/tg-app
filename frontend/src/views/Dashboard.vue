@@ -34,6 +34,7 @@ const adminNavItems = [
   { path: '/admin/appointments', label: 'Записи', icon: `/icons/appointments.png?${iconV}` },
   { path: '/admin/availability', label: 'Окошки', icon: `/icons/availability.png?${iconV}` },
   { path: '/admin/custom-time-requests', label: 'Запросы своего времени', icon: '🕐' },
+  { path: '/admin/portfolio', label: 'Портфолио', icon: '🖼️' },
   { path: '/giveaways', label: 'Розыгрыши', icon: `/icons/giveaways.png?${iconV}` },
   { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
   { path: '/admin/broadcast', label: 'Рассылка', icon: '📢', adminOnly: true },

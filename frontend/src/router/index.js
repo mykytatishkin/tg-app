@@ -146,6 +146,12 @@ const routes = [
     component: () => import('../views/admin/MasterSettings.vue'),
     meta: { requiresAuth: true, requiresMaster: true },
   },
+  {
+    path: '/admin/portfolio',
+    name: 'AdminPortfolio',
+    component: () => import('../views/admin/Portfolio.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
 ];
 
 const router = createRouter({
