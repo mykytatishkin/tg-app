@@ -38,6 +38,7 @@ const adminNavItems = [
   { path: '/admin/backups', label: 'Бекапы', icon: '💾' },
   { path: '/admin/broadcast', label: 'Рассылка', icon: '📢', adminOnly: true },
   { path: '/admin/suggestions', label: 'Предложения', icon: '📩', adminOnly: true },
+  { path: '/admin/settings', label: 'Настройки профиля', icon: '⚙️' },
 ];
 
 const userNavItems = [

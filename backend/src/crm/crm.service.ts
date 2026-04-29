@@ -89,6 +89,24 @@ export class CrmService {
     return users.map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
   }
 
+  async getMasterProfile(user: User): Promise<{ bio: string | null }> {
+    const master = await this.userRepo.findOne({
+      where: { id: user.id },
+      select: ['bio'],
+    });
+    return { bio: master?.bio ?? null };
+  }
+
+  async updateMasterProfile(user: User, body: { bio?: string }): Promise<{ bio: string | null }> {
+    const bio = body.bio !== undefined
+      ? (body.bio.trim().slice(0, 500) || null)
+      : undefined;
+    if (bio !== undefined) {
+      await this.userRepo.update({ id: user.id }, { bio });
+    }
+    return this.getMasterProfile(user);
+  }
+
   /** All telegramIds for discount notification: clients of this master + registered users. Used for second wave (1h later). */
   private async getTelegramIdsForDiscountNotification(masterId: string): Promise<string[]> {
     const clients = await this.clientRepo.find({

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
@@ -11,6 +11,7 @@ const { hapticFeedback } = useTelegramWebApp();
 const profile = ref(null);
 const loading = ref(true);
 const error = ref(null);
+const bioExpanded = ref(false);
 
 const masterId = route.params.id;
 
@@ -94,6 +95,24 @@ function goBack() {
           </div>
           <div v-else class="text-sm text-[var(--tg-theme-hint-color,#999)] mt-1">Отзывов пока нет</div>
         </div>
+      </div>
+
+      <!-- Bio: collapsed after 3 lines with "Читать далее" -->
+      <div v-if="profile.bio" class="mb-6 p-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f5f5f5)]">
+        <p
+          class="text-sm leading-relaxed whitespace-pre-line"
+          :class="bioExpanded ? '' : 'line-clamp-3'"
+        >
+          {{ profile.bio }}
+        </p>
+        <button
+          v-if="!bioExpanded"
+          type="button"
+          class="mt-2 text-sm text-[var(--tg-theme-link-color,#2481cc)]"
+          @click="bioExpanded = true; hapticFeedback?.('light')"
+        >
+          Читать далее
+        </button>
       </div>
 
       <template v-if="profile.reviews.length > 0">

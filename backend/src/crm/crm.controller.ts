@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -33,6 +34,19 @@ export class CrmController {
   @Get('masters')
   getMasters(@Request() req: { user: User }) {
     return this.crmService.getMasters(req.user);
+  }
+
+  @Get('masters/profile')
+  getMasterProfile(@Request() req: { user: User }) {
+    return this.crmService.getMasterProfile(req.user);
+  }
+
+  @Patch('masters/profile')
+  updateMasterProfile(
+    @Request() req: { user: User },
+    @Body() body: { bio?: string },
+  ) {
+    return this.crmService.updateMasterProfile(req.user, body);
   }
 
   @Get('clients')
