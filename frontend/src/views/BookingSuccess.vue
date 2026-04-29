@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 const { hapticFeedback, webApp } = useTelegramWebApp();
 
 const appointmentId = ref(route.query.id || '');
@@ -70,7 +72,6 @@ async function payNow() {
   try {
     const data = await api.post(`/appointments/${appointmentId.value}/payment`, {});
     if (!data.invoiceUrl) {
-      // No payment provider configured — skip gracefully
       hapticFeedback?.('success');
       paymentDone.value = true;
       return;
@@ -86,7 +87,6 @@ async function payNow() {
         }
       });
     } else {
-      // Fallback: open in browser tab
       window.open(data.invoiceUrl, '_blank');
     }
   } catch (e) {
@@ -102,7 +102,6 @@ onMounted(() => {
   if (!appointmentId.value) {
     goToAppointments();
   }
-  webApp?.expand?.();
 });
 </script>
 
@@ -130,13 +129,13 @@ onMounted(() => {
 
       <template v-else>
         <h1 class="text-2xl font-bold mb-4">
-          Вы успешно забронировали визит
+          {{ t('bookingSuccess.title') }}
         </h1>
         <p class="text-[var(--tg-theme-hint-color,#999)] mb-6">
-          Включить напоминалку?
+          {{ t('bookingSuccess.reminderQuestion') }}
         </p>
         <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-6">
-          За день до записи (за 24 ч или меньше) мы пришлём напоминание вам и мастеру в чат с ботом.
+          {{ t('bookingSuccess.reminderDesc') }}
         </p>
 
         <p v-if="error" class="text-red-500 text-sm mb-4">{{ error }}</p>
@@ -148,7 +147,7 @@ onMounted(() => {
             :disabled="loading || paymentLoading"
             @click="enableReminder"
           >
-            {{ loading ? 'Включаю…' : 'Да, включить напоминание' }}
+            {{ loading ? t('bookingSuccess.enabling') : t('bookingSuccess.enableReminder') }}
           </button>
 
           <button
@@ -166,7 +165,7 @@ onMounted(() => {
             :disabled="loading || paymentLoading"
             @click="skipReminder"
           >
-            Пропустить
+            {{ t('bookingSuccess.skipReminder') }}
           </button>
         </div>
       </template>
