@@ -46,11 +46,23 @@ export class AppointmentsService {
     return master.id;
   }
 
-  /** List masters for client booking (id, firstName, lastName, address). */
-  async getMasters(): Promise<{ id: string; firstName: string; lastName: string | null; address: string | null }[]> {
+  /** Unique cities where masters are located (non-null only). */
+  async getCities(): Promise<string[]> {
     const masters = await this.userRepo.find({
       where: { isMaster: true },
-      select: ['id', 'firstName', 'lastName', 'address'],
+      select: ['city'],
+    });
+    const cities = [...new Set(masters.map((m) => m['city']).filter(Boolean))] as string[];
+    return cities.sort();
+  }
+
+  /** List masters for client booking (id, firstName, lastName, address, city). Optionally filtered by city. */
+  async getMasters(city?: string): Promise<{ id: string; firstName: string; lastName: string | null; address: string | null; city: string | null }[]> {
+    const where: Record<string, unknown> = { isMaster: true };
+    if (city) where['city'] = city;
+    const masters = await this.userRepo.find({
+      where,
+      select: ['id', 'firstName', 'lastName', 'address', 'city'],
       order: { firstName: 'ASC' },
     });
     return masters;

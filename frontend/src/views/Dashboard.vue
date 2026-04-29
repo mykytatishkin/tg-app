@@ -3,12 +3,17 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import { useCity } from '../composables/useCity';
+import { api } from '../api/client';
 
 const router = useRouter();
 const { user, logout, refreshUser, isAuthenticated } = useAuth();
 const { hapticFeedback } = useTelegramWebApp();
+const { selectedCity, cityChangedInSession, setCity } = useCity();
 
 const userReady = ref(false);
+const cities = ref([]);
+const showCityPicker = ref(false);
 const studioAddress = 'Spaudos Rumai Vilnius';
 
 function getGoogleMapsUrl(address) {
@@ -16,11 +21,29 @@ function getGoogleMapsUrl(address) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address.trim());
 }
 
+async function loadCities() {
+  try {
+    cities.value = await api.get('/appointments/cities');
+  } catch {
+    cities.value = [];
+  }
+}
+
+function onCityChange(city) {
+  hapticFeedback?.('light');
+  setCity(city);
+  showCityPicker.value = false;
+}
+
 onMounted(async () => {
   if (isAuthenticated.value) {
-    await refreshUser();
+    await Promise.all([refreshUser(), loadCities()]);
   }
   userReady.value = true;
+  // Show city picker only if: cities available, none selected yet, and not changed in session
+  if (cities.value.length > 1 && !selectedCity.value && !cityChangedInSession.value) {
+    showCityPicker.value = true;
+  }
 });
 
 const isMasterOrAdmin = computed(() => !!user.value?.isMaster || !!user.value?.isAdmin);
@@ -86,6 +109,42 @@ function handleLogout() {
       <p class="text-[var(--tg-theme-hint-color,#999)] mb-6">
         {{ isMasterOrAdmin ? (isAdmin ? 'Просмотр и управление данными мастеров' : 'Управление студией маникюра') : 'Записывайтесь и смотрите свои визиты' }}
       </p>
+
+      <!-- City picker modal (first-run or explicit change) -->
+      <div
+        v-if="showCityPicker && cities.length > 1"
+        class="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/50"
+      >
+        <div class="w-full max-w-sm rounded-2xl p-5 bg-[var(--tg-theme-bg-color,#fff)] shadow-xl">
+          <h3 class="text-lg font-semibold mb-3">Выберите город</h3>
+          <div class="space-y-2">
+            <button
+              v-for="city in cities"
+              :key="city"
+              type="button"
+              class="w-full text-left px-4 py-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] font-medium"
+              @click="onCityChange(city)"
+            >
+              {{ city }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- City selector row (when cities available) -->
+      <div
+        v-if="!isMasterOrAdmin && cities.length > 1"
+        class="mb-4 flex items-center justify-between p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] border border-[var(--tg-theme-section-separator-color)]"
+      >
+        <span class="text-sm text-[var(--tg-theme-hint-color,#999)]">Город</span>
+        <button
+          type="button"
+          class="text-sm font-medium text-[var(--tg-theme-link-color,#2481cc)]"
+          @click="showCityPicker = true; hapticFeedback?.('light')"
+        >
+          {{ selectedCity || 'Выбрать' }} ▾
+        </button>
+      </div>
 
       <div
         v-if="!isMasterOrAdmin"

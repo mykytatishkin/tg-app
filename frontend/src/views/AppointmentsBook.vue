@@ -4,10 +4,12 @@ import { useRouter, useRoute } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 import DateCalendar from '../components/DateCalendar.vue';
+import { useCity } from '../composables/useCity';
 
 const router = useRouter();
 const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
+const { selectedCity } = useCity();
 
 /** '' = не выбрано, 'slot' = услуга, 'models' = для моделей, 'customTime' = своё время за доплату */
 const bookingMode = ref('');
@@ -78,7 +80,8 @@ async function loadMasters() {
   loadingMasters.value = true;
   error.value = null;
   try {
-    masters.value = await api.get('/appointments/masters');
+    const cityParam = selectedCity.value ? `?city=${encodeURIComponent(selectedCity.value)}` : '';
+    masters.value = await api.get(`/appointments/masters${cityParam}`);
     if (masters.value.length === 1) {
       selectedMasterId.value = masters.value[0].id;
     } else if (masters.value.length > 1 && !selectedMasterId.value) {

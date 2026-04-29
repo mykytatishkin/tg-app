@@ -27,9 +27,14 @@ export class AppointmentsController {
     return this.appointmentsService.getConfig();
   }
 
+  @Get('cities')
+  getCities() {
+    return this.appointmentsService.getCities();
+  }
+
   @Get('masters')
-  getMasters() {
-    return this.appointmentsService.getMasters();
+  getMasters(@Query('city') city?: string) {
+    return this.appointmentsService.getMasters(city || undefined);
   }
 
   @Get('services')

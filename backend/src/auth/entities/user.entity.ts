@@ -55,6 +55,10 @@ export class User {
   @Column({ type: 'varchar', length: 500, nullable: true })
   bio: string | null;
 
+  /** Город студии (используется для фильтрации мастеров по городу). */
+  @Column({ type: 'varchar', nullable: true })
+  city: string | null;
+
   /** Варианты «что понравилось» для отзыва после сеанса. */
   @Column({ type: 'json', nullable: true })
   feedbackOptions: string[] | null;
