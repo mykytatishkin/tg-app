@@ -1,23 +1,24 @@
 <script setup>
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 import { api } from '../api/client';
 
 const CATEGORIES = [
   'UI/UX',
   'Функционал',
-  'Ошибки и баги',
+  'Нашли ошибку?',
   'Навигация',
   'Контент',
   'Другое',
 ];
 
 const router = useRouter();
+const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
 
 const text = ref('');
-const category = ref('');
+const category = ref(route.query.category === 'bug' ? 'Нашли ошибку?' : '');
 const loading = ref(false);
 const error = ref(null);
 const success = ref(false);
@@ -64,7 +65,7 @@ async function submit() {
       >
         ←
       </button>
-      <h1 class="text-xl font-bold">Предложение изменений</h1>
+      <h1 class="text-xl font-bold">{{ category === 'Нашли ошибку?' ? 'Нашли ошибку?' : 'Предложение изменений' }}</h1>
     </div>
 
     <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-4">

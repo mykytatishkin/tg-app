@@ -144,14 +144,21 @@ function handleLogout() {
       </template>
       </div>
 
-      <div class="mt-8 pt-6 border-t border-[var(--tg-theme-section-separator-color)]">
+      <div class="mt-8 pt-6 border-t border-[var(--tg-theme-section-separator-color)] flex items-center justify-between gap-2">
         <button
           type="button"
-          class="w-full py-2 text-sm text-[var(--tg-theme-hint-color,#999)]"
+          class="py-2 text-sm text-[var(--tg-theme-hint-color,#999)]"
           @click="handleLogout"
         >
           Выйти
         </button>
+        <RouterLink
+          to="/suggestions/new?category=bug"
+          class="py-2 text-sm text-[var(--tg-theme-hint-color,#999)] no-underline"
+          @click="hapticFeedback?.('light')"
+        >
+          Нашли ошибку?
+        </RouterLink>
       </div>
     </template>
   </div>

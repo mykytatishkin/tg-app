@@ -225,16 +225,24 @@ onMounted(load);
     </div>
 
     <div class="mt-6 pt-6 border-t border-[var(--tg-theme-section-separator-color,#e0e0e0)]">
-      <h2 class="text-lg font-medium mb-2">Предложение изменений</h2>
+      <h2 class="text-lg font-medium mb-2">Обратная связь</h2>
       <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
-        Есть идея по улучшению приложения? Опишите её — мы учтём.
+        Есть идея по улучшению или нашли ошибку? Напишите нам.
       </p>
-      <RouterLink
-        to="/suggestions/new"
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
-      >
-        Оставить предложение →
-      </RouterLink>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink
+          to="/suggestions/new"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
+        >
+          Оставить предложение →
+        </RouterLink>
+        <RouterLink
+          to="/suggestions/new?category=bug"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
+        >
+          Нашли ошибку? 🐛
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>
