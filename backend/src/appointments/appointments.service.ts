@@ -32,6 +32,11 @@ export class AppointmentsService {
     private configService: ConfigService,
   ) {}
 
+  getConfig() {
+    const feePercent = this.configService.get<number>('SERVICE_FEE_PERCENT') || 5;
+    return { serviceFeePercent: feePercent };
+  }
+
   private async getMasterId(): Promise<string> {
     const master = await this.userRepo.findOne({ where: { isMaster: true } });
     if (!master) throw new BadRequestException('No master configured');

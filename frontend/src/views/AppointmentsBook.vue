@@ -272,6 +272,22 @@ const slotsForSelectedDate = computed(() =>
   slots.value.filter((s) => s.date === selectedDate.value),
 );
 
+const priceInfo = computed(() => {
+  const service = services.value.find((s) => s.id === selectedServiceId.value);
+  const slotModifier = selectedSlot.value?.priceModifier ?? 0;
+  if (!service) return null;
+  const basePrice = Number(service.price) || 0;
+  const slotPrice = basePrice + (slotModifier || 0);
+  const fee = Math.round(slotPrice * serviceFeePercent.value * 100) / 10000;
+  return {
+    basePrice,
+    slotModifier,
+    slotPrice,
+    fee: fee.toFixed(2),
+    total: (slotPrice).toFixed(2),
+  };
+});
+
 function onDateSelected(dateStr) {
   hapticFeedback?.('light');
   selectedDate.value = dateStr;
@@ -280,8 +296,15 @@ function onDateSelected(dateStr) {
 
 const preselectedDate = ref(route.query.date ? String(route.query.date).trim() : '');
 const preselectedMasterId = ref(route.query.masterId ? String(route.query.masterId).trim() : '');
+const serviceFeePercent = ref(5);
 
 onMounted(async () => {
+  try {
+    const config = await api.get('/appointments/config');
+    serviceFeePercent.value = config.serviceFeePercent || 5;
+  } catch {
+    // Use default if config fetch fails
+  }
   await loadMasters();
   if (preselectedMasterId.value && masters.value.some((m) => m.id === preselectedMasterId.value)) {
     selectedMasterId.value = preselectedMasterId.value;
@@ -523,6 +546,21 @@ watch(slots, (newSlots) => {
             >
           </div>
         </template>
+      </div>
+
+      <!-- Price summary -->
+      <div v-if="priceInfo && bookingMode !== 'customTime'" class="p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-sm space-y-1 border border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+        <div class="flex justify-between">
+          <span>Стоимость услуги:</span>
+          <span class="font-medium">{{ priceInfo.total }} €</span>
+        </div>
+        <div v-if="serviceFeePercent > 0" class="text-xs text-[var(--tg-theme-hint-color,#999)]">
+          <div class="flex justify-between">
+            <span>Комиссия платформы ({{ serviceFeePercent }}%):</span>
+            <span>{{ priceInfo.fee }} €</span>
+          </div>
+          <p class="mt-1 opacity-80">Вы платите полную цену. Мастер получит {{ (priceInfo.total - Number(priceInfo.fee)).toFixed(2) }} €</p>
+        </div>
       </div>
 
       <button

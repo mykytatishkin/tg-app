@@ -22,6 +22,11 @@ import { getTodayInVilnius, getDateInVilnius } from '../shared/timezone.util';
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
+  @Get('config')
+  getConfig() {
+    return this.appointmentsService.getConfig();
+  }
+
   @Get('masters')
   getMasters() {
     return this.appointmentsService.getMasters();
