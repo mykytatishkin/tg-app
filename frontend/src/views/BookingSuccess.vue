@@ -1,15 +1,19 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 
 const router = useRouter();
 const route = useRoute();
-const { hapticFeedback } = useTelegramWebApp();
+const { t } = useI18n();
+const { hapticFeedback, webApp } = useTelegramWebApp();
 
 const appointmentId = ref(route.query.id || '');
 const loading = ref(false);
+const paymentLoading = ref(false);
+const paymentDone = ref(false);
 const error = ref(null);
 const confettiRunning = ref(true);
 
@@ -53,10 +57,47 @@ function skipReminder() {
 }
 
 function goToAppointments() {
-  router.replace('/appointments');
+  if (webApp) {
+    webApp.close();
+  } else {
+    router.replace('/appointments');
+  }
+}
+
+async function payNow() {
+  if (!appointmentId.value) return;
+  hapticFeedback?.('light');
+  paymentLoading.value = true;
+  error.value = null;
+  try {
+    const data = await api.post(`/appointments/${appointmentId.value}/payment`, {});
+    if (!data.invoiceUrl) {
+      hapticFeedback?.('success');
+      paymentDone.value = true;
+      return;
+    }
+    if (webApp?.openInvoice) {
+      webApp.openInvoice(data.invoiceUrl, (status) => {
+        if (status === 'paid') {
+          hapticFeedback?.('success');
+          paymentDone.value = true;
+        } else if (status === 'failed') {
+          error.value = 'Платёж не прошёл. Попробуйте ещё раз.';
+          hapticFeedback?.('error');
+        }
+      });
+    } else {
+      window.open(data.invoiceUrl, '_blank');
+    }
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    paymentLoading.value = false;
+  }
 }
 
 onMounted(() => {
+  webApp?.expand();
   runConfetti();
   if (!appointmentId.value) {
     goToAppointments();
@@ -68,36 +109,66 @@ onMounted(() => {
   <div class="min-h-screen p-4 pb-24 bg-[var(--tg-theme-bg-color,#fff)] text-[var(--tg-theme-text-color,#000)] flex flex-col items-center justify-center relative overflow-hidden">
     <div id="confetti-container" class="fixed inset-0 pointer-events-none z-0" aria-hidden="true" />
 
-    <div class="relative z-10 text-center max-w-sm">
-      <h1 class="text-2xl font-bold mb-4">
-        Вы успешно забронировали визит
-      </h1>
-      <p class="text-[var(--tg-theme-hint-color,#999)] mb-8">
-        Включить напоминалку?
-      </p>
-      <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-6">
-        За день до записи (за 24 ч или меньше) мы пришлём напоминание вам и мастеру в чат с ботом.
-      </p>
+    <div class="relative z-10 text-center max-w-sm w-full">
+      <template v-if="paymentDone">
+        <div class="text-4xl mb-4">💳</div>
+        <h1 class="text-2xl font-bold mb-4">Оплата прошла!</h1>
+        <p class="text-[var(--tg-theme-hint-color,#999)] mb-8">
+          Ваш визит подтверждён и оплачен.
+        </p>
+        <div class="flex flex-col gap-3">
+          <button
+            type="button"
+            class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
+            @click="goToAppointments"
+          >
+            Мои записи
+          </button>
+        </div>
+      </template>
 
-      <p v-if="error" class="text-neutral-400 text-sm mb-4">{{ error }}</p>
+      <template v-else>
+        <h1 class="text-2xl font-bold mb-4">
+          {{ t('bookingSuccess.title') }}
+        </h1>
+        <p class="text-[var(--tg-theme-hint-color,#999)] mb-6">
+          {{ t('bookingSuccess.reminderQuestion') }}
+        </p>
+        <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-6">
+          {{ t('bookingSuccess.reminderDesc') }}
+        </p>
 
-      <div class="flex flex-col gap-3">
-        <button
-          type="button"
-          class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
-          :disabled="loading"
-          @click="enableReminder"
-        >
-          {{ loading ? 'Включаю…' : 'Да, включить' }}
-        </button>
-        <button
-          type="button"
-          class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)]"
-          @click="skipReminder"
-        >
-          Нет, не нужно
-        </button>
-      </div>
+        <p v-if="error" class="text-red-500 text-sm mb-4">{{ error }}</p>
+
+        <div class="flex flex-col gap-3">
+          <button
+            type="button"
+            class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)] disabled:opacity-60"
+            :disabled="loading || paymentLoading"
+            @click="enableReminder"
+          >
+            {{ loading ? t('bookingSuccess.enabling') : t('bookingSuccess.enableReminder') }}
+          </button>
+
+          <button
+            type="button"
+            class="w-full py-3 px-4 rounded-xl font-medium bg-[var(--tg-theme-secondary-bg-color,#e5e5e5)] text-[var(--tg-theme-text-color,#000)] disabled:opacity-60"
+            :disabled="loading || paymentLoading"
+            @click="payNow"
+          >
+            {{ paymentLoading ? 'Открываю оплату…' : '💳 Оплатить визит' }}
+          </button>
+
+          <button
+            type="button"
+            class="w-full py-3 px-4 rounded-xl font-medium text-[var(--tg-theme-hint-color,#999)]"
+            :disabled="loading || paymentLoading"
+            @click="skipReminder"
+          >
+            {{ t('bookingSuccess.skipReminder') }}
+          </button>
+        </div>
+      </template>
     </div>
   </div>
 </template>

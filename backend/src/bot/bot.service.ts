@@ -14,7 +14,7 @@ import {
   type MockCourse,
   type QuickTestQuestion,
 } from './quick-test.state';
-import { Appointment, AppointmentStatus } from '../crm/entities/appointment.entity';
+import { Appointment, AppointmentStatus, PaymentStatus } from '../crm/entities/appointment.entity';
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Suggestion, SUGGESTION_STATUS_LABELS, type SuggestionStatus } from '../suggestions/entities/suggestion.entity';
@@ -465,6 +465,22 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return ctx.reply(formatCoursesMessage(courses), { parse_mode: 'HTML' });
     });
 
+    // Telegram Payments: answer pre_checkout_query immediately to confirm the order
+    this.bot.on('pre_checkout_query', async (ctx) => {
+      await ctx.answerPreCheckoutQuery(true);
+    });
+
+    // Telegram Payments: on successful payment update appointment paymentStatus
+    this.bot.on('message', async (ctx, next) => {
+      const msg = ctx.message as { successful_payment?: { invoice_payload: string } };
+      if (!msg.successful_payment) return next();
+      const payload = msg.successful_payment.invoice_payload;
+      await this.appointmentRepo.update(
+        { invoiceId: payload },
+        { paymentStatus: PaymentStatus.PAID, paidAt: new Date() },
+      );
+    });
+
     this.bot.launch().catch((err) => {
       console.error('Bot launch error:', err);
     });
@@ -672,6 +688,32 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       console.error('Bot sendMessageWithUrlButtons error:', err);
       return false;
+    }
+  }
+
+  /** Create a Telegram payment invoice link for the given appointment. */
+  async createInvoiceLink(opts: {
+    invoiceId: string;
+    title: string;
+    description: string;
+    amountCents: number;
+    currency: string;
+  }): Promise<string | null> {
+    if (!this.bot) return null;
+    const providerToken = this.configService.get<string>('TELEGRAM_PAYMENT_PROVIDER_TOKEN') ?? '';
+    try {
+      const link = await (this.bot.telegram as any).createInvoiceLink({
+        title: opts.title,
+        description: opts.description,
+        payload: opts.invoiceId,
+        provider_token: providerToken,
+        currency: opts.currency,
+        prices: [{ label: opts.title, amount: opts.amountCents }],
+      });
+      return link as string;
+    } catch (err) {
+      console.error('createInvoiceLink error:', err);
+      return null;
     }
   }
 }

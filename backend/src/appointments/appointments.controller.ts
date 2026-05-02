@@ -22,9 +22,19 @@ import { getTodayInVilnius, getDateInVilnius } from '../shared/timezone.util';
 export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
+  @Get('config')
+  getConfig() {
+    return this.appointmentsService.getConfig();
+  }
+
+  @Get('cities')
+  getCities() {
+    return this.appointmentsService.getCities();
+  }
+
   @Get('masters')
-  getMasters() {
-    return this.appointmentsService.getMasters();
+  getMasters(@Query('city') city?: string) {
+    return this.appointmentsService.getMasters(city || undefined);
   }
 
   @Get('services')
@@ -116,5 +126,49 @@ export class AppointmentsController {
     @Body() body: { reason?: string },
   ) {
     return this.appointmentsService.cancelByClient(req.user, id, body?.reason ?? '');
+  }
+
+  @Post(':id/review')
+  submitReview(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+    @Body() body: { rating: number; comment?: string },
+  ) {
+    return this.appointmentsService.submitReview(req.user, id, body.rating, body.comment ?? null);
+  }
+
+  @Get('masters/:id/profile')
+  getMasterPublicProfile(@Param('id') id: string) {
+    return this.appointmentsService.getMasterPublicProfile(id);
+  }
+
+  @Get('masters/:id/portfolio')
+  getMasterPortfolio(@Param('id') id: string) {
+    return this.appointmentsService.getMasterPortfolio(id);
+  }
+
+  @Get('recommendations')
+  getRecommendations(
+    @Request() req: { user: User },
+    @Query('masterId') masterId?: string,
+  ) {
+    return this.appointmentsService.getRecommendations(req.user, masterId);
+  }
+
+  /** Webhook called by Telegram/payment provider to confirm a payment. */
+  @Post('payment/confirm')
+  confirmPayment(
+    @Body() body: { invoiceId: string },
+  ) {
+    return this.appointmentsService.confirmPayment(body.invoiceId);
+  }
+
+  /** Create a Telegram payment invoice link for an appointment. */
+  @Post(':id/payment')
+  createPaymentInvoice(
+    @Request() req: { user: User },
+    @Param('id') id: string,
+  ) {
+    return this.appointmentsService.createPaymentInvoice(req.user, id);
   }
 }

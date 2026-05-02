@@ -27,6 +27,13 @@ export enum AppointmentSource {
   MANUAL = 'manual',
 }
 
+export enum PaymentStatus {
+  PENDING = 'pending',
+  PAID = 'paid',
+  FAILED = 'failed',
+  REFUNDED = 'refunded',
+}
+
 @Entity('appointments')
 export class Appointment {
   @PrimaryGeneratedColumn('uuid')
@@ -125,6 +132,25 @@ export class Appointment {
 
   @OneToOne(() => AppointmentFeedback, (fb) => fb.appointment, { nullable: true })
   feedback: AppointmentFeedback | null;
+
+  /** Telegram invoice ID for payment */
+  @Column({ type: 'varchar', nullable: true })
+  invoiceId: string | null;
+
+  /** Payment status (pending, paid, failed, refunded) */
+  @Column({
+    type: 'varchar',
+    default: PaymentStatus.PENDING,
+  })
+  paymentStatus: PaymentStatus;
+
+  /** Total price to be paid by client */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  totalPrice: number | null;
+
+  /** When payment was received */
+  @Column({ type: 'timestamp', nullable: true })
+  paidAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

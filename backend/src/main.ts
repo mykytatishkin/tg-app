@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+import { mkdirSync } from 'fs';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.setGlobalPrefix('api');
+
+  const uploadsDir = join(process.cwd(), 'uploads');
+  mkdirSync(join(uploadsDir, 'portfolio'), { recursive: true });
+  app.useStaticAssets(uploadsDir, { prefix: '/uploads' });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

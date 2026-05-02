@@ -1,12 +1,16 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import DateCalendar from '../components/DateCalendar.vue';
+import RecommendedSlots from '../components/RecommendedSlots.vue';
+import { useCity } from '../composables/useCity';
 
 const router = useRouter();
 const route = useRoute();
 const { hapticFeedback } = useTelegramWebApp();
+const { selectedCity } = useCity();
 
 /** '' = не выбрано, 'slot' = услуга, 'models' = для моделей, 'customTime' = своё время за доплату */
 const bookingMode = ref('');
@@ -77,7 +81,8 @@ async function loadMasters() {
   loadingMasters.value = true;
   error.value = null;
   try {
-    masters.value = await api.get('/appointments/masters');
+    const cityParam = selectedCity.value ? `?city=${encodeURIComponent(selectedCity.value)}` : '';
+    masters.value = await api.get(`/appointments/masters${cityParam}`);
     if (masters.value.length === 1) {
       selectedMasterId.value = masters.value[0].id;
     } else if (masters.value.length > 1 && !selectedMasterId.value) {
@@ -137,6 +142,7 @@ async function loadSlots() {
   loadingSlots.value = true;
   slots.value = [];
   selectedSlot.value = null;
+  selectedDate.value = '';
   error.value = null;
   try {
     const { from, to } = getFromTo();
@@ -168,6 +174,26 @@ function onMasterChange() {
   } else {
     loadServices();
   }
+}
+
+function onRecommendationSelect(rec) {
+  hapticFeedback?.('light');
+  // Pre-fill the booking form from the recommendation
+  bookingMode.value = 'slot';
+  forModelsMode.value = false;
+  selectedMasterId.value = rec.masterId;
+  if (rec.serviceId) selectedServiceId.value = rec.serviceId;
+  selectedSlot.value = {
+    id: rec.slotId,
+    date: rec.date,
+    startTime: rec.startTime,
+    endTime: rec.endTime,
+    priceModifier: rec.priceModifier,
+    serviceName: rec.serviceName,
+  };
+  selectedDate.value = rec.date;
+  // Scroll down to the booking form
+  window.scrollTo({ top: 400, behavior: 'smooth' });
 }
 
 function onServiceChange() {
@@ -264,10 +290,45 @@ async function submitCustomTime() {
   }
 }
 
+const selectedDate = ref('');
+
+const slotsForSelectedDate = computed(() =>
+  slots.value.filter((s) => s.date === selectedDate.value),
+);
+
+const priceInfo = computed(() => {
+  const service = services.value.find((s) => s.id === selectedServiceId.value);
+  const slotModifier = selectedSlot.value?.priceModifier ?? 0;
+  if (!service) return null;
+  const basePrice = Number(service.price) || 0;
+  const slotPrice = basePrice + (slotModifier || 0);
+  const fee = Math.round(slotPrice * serviceFeePercent.value * 100) / 10000;
+  return {
+    basePrice,
+    slotModifier,
+    slotPrice,
+    fee: fee.toFixed(2),
+    total: (slotPrice).toFixed(2),
+  };
+});
+
+function onDateSelected(dateStr) {
+  hapticFeedback?.('light');
+  selectedDate.value = dateStr;
+  selectedSlot.value = null;
+}
+
 const preselectedDate = ref(route.query.date ? String(route.query.date).trim() : '');
 const preselectedMasterId = ref(route.query.masterId ? String(route.query.masterId).trim() : '');
+const serviceFeePercent = ref(5);
 
 onMounted(async () => {
+  try {
+    const config = await api.get('/appointments/config');
+    serviceFeePercent.value = config.serviceFeePercent || 5;
+  } catch {
+    // Use default if config fetch fails
+  }
   await loadMasters();
   if (preselectedMasterId.value && masters.value.some((m) => m.id === preselectedMasterId.value)) {
     selectedMasterId.value = preselectedMasterId.value;
@@ -286,9 +347,9 @@ watch(selectedServiceId, () => {
 });
 
 watch(slots, (newSlots) => {
-  if (preselectedDate.value && newSlots.length && !selectedSlot.value) {
-    const slot = newSlots.find((s) => s.date === preselectedDate.value);
-    if (slot) selectedSlot.value = slot;
+  if (preselectedDate.value && newSlots.length && !selectedDate.value) {
+    const hasDate = newSlots.some((s) => s.date === preselectedDate.value);
+    if (hasDate) selectedDate.value = preselectedDate.value;
   }
 }, { deep: true });
 </script>
@@ -304,6 +365,11 @@ watch(slots, (newSlots) => {
       </button>
       <h1 class="text-2xl font-bold">Записаться</h1>
     </div>
+
+    <RecommendedSlots
+      :master-id="selectedMasterId"
+      @select="onRecommendationSelect"
+    />
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
@@ -431,25 +497,37 @@ watch(slots, (newSlots) => {
           <div v-else-if="slots.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">
             Нет свободных слотов на ближайшие {{ DAYS_AHEAD }} дней. Попробуйте позже.
           </div>
-          <ul v-else class="space-y-2 max-h-64 overflow-y-auto">
-            <li
-              v-for="(slot, idx) in slots"
-              :key="`${slot.date}-${slot.startTime}-${slot.slotId || idx}`"
-            >
-              <button
-                type="button"
-                class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
-                :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.date === slot.date && selectedSlot.startTime === slot.startTime
-                  ? 'bg-white/10 border-2 border-[var(--tg-theme-button-text-color,#e8e8e8)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
-                  : forModelsMode
-                    ? 'bg-neutral-700/50 border border-neutral-600'
-                    : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)]'"
-                @click="selectSlot(slot)"
-              >
-                {{ formatSlotLabel(slot, forModelsMode) }}
-              </button>
-            </li>
-          </ul>
+          <template v-else>
+            <!-- Calendar grid: pick a date first -->
+            <DateCalendar
+              :slots="slots"
+              :selected-date="selectedDate"
+              :for-models="forModelsMode"
+              @select-date="onDateSelected"
+            />
+
+            <!-- Time slots for selected date -->
+            <template v-if="selectedDate">
+              <div class="mt-4 mb-1 text-sm font-medium text-[var(--tg-theme-hint-color,#999)]">Время</div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="(slot, idx) in slotsForSelectedDate"
+                  :key="`${slot.startTime}-${slot.slotId || idx}`"
+                  type="button"
+                  class="px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                  :class="selectedSlot && selectedSlot.slotId === slot.slotId && selectedSlot.startTime === slot.startTime
+                    ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]'
+                    : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)]'"
+                  @click="selectSlot(slot)"
+                >
+                  {{ slot.startTime?.slice(0, 5) }}
+                  <span v-if="slot.priceModifier != null && slot.priceModifier !== 0" class="text-xs opacity-70">
+                    {{ slot.priceModifier > 0 ? '+' : '' }}{{ slot.priceModifier }} €
+                  </span>
+                </button>
+              </div>
+            </template>
+          </template>
         </div>
 
         <div v-if="bookingMode === 'slot'" class="space-y-2">
@@ -497,6 +575,21 @@ watch(slots, (newSlots) => {
             >
           </div>
         </template>
+      </div>
+
+      <!-- Price summary -->
+      <div v-if="priceInfo && bookingMode !== 'customTime'" class="p-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-sm space-y-1 border border-[var(--tg-theme-section-separator-color,#e5e5e5)]">
+        <div class="flex justify-between">
+          <span>Стоимость услуги:</span>
+          <span class="font-medium">{{ priceInfo.total }} €</span>
+        </div>
+        <div v-if="serviceFeePercent > 0" class="text-xs text-[var(--tg-theme-hint-color,#999)]">
+          <div class="flex justify-between">
+            <span>Комиссия платформы ({{ serviceFeePercent }}%):</span>
+            <span>{{ priceInfo.fee }} €</span>
+          </div>
+          <p class="mt-1 opacity-80">Вы платите полную цену. Мастер получит {{ (priceInfo.total - Number(priceInfo.fee)).toFixed(2) }} €</p>
+        </div>
       </div>
 
       <button

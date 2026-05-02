@@ -1,11 +1,14 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, LessThan, Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
-import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
+import { Appointment, AppointmentSource, AppointmentStatus, PaymentStatus } from '../crm/entities/appointment.entity';
+import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
+import { PortfolioPhoto } from '../crm/entities/portfolio-photo.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
 import { BotService } from '../bot/bot.service';
 import { getTodayInVilnius, parseDateTimeInVilnius, formatDateTimeForNotification } from '../shared/timezone.util';
@@ -22,10 +25,20 @@ export class AppointmentsService {
     private serviceRepo: Repository<Service>,
     @InjectRepository(Appointment)
     private appointmentRepo: Repository<Appointment>,
+    @InjectRepository(AppointmentFeedback)
+    private feedbackRepo: Repository<AppointmentFeedback>,
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
+    @InjectRepository(PortfolioPhoto)
+    private portfolioRepo: Repository<PortfolioPhoto>,
     private botService: BotService,
+    private configService: ConfigService,
   ) {}
+
+  getConfig() {
+    const feePercent = this.configService.get<number>('SERVICE_FEE_PERCENT') || 5;
+    return { serviceFeePercent: feePercent };
+  }
 
   private async getMasterId(): Promise<string> {
     const master = await this.userRepo.findOne({ where: { isMaster: true } });
@@ -33,11 +46,23 @@ export class AppointmentsService {
     return master.id;
   }
 
-  /** List masters for client booking (id, firstName, lastName, address). */
-  async getMasters(): Promise<{ id: string; firstName: string; lastName: string | null; address: string | null }[]> {
+  /** Unique cities where masters are located (non-null only). */
+  async getCities(): Promise<string[]> {
     const masters = await this.userRepo.find({
       where: { isMaster: true },
-      select: ['id', 'firstName', 'lastName', 'address'],
+      select: ['city'],
+    });
+    const cities = [...new Set(masters.map((m) => m['city']).filter(Boolean))] as string[];
+    return cities.sort();
+  }
+
+  /** List masters for client booking (id, firstName, lastName, address, city). Optionally filtered by city. */
+  async getMasters(city?: string): Promise<{ id: string; firstName: string; lastName: string | null; address: string | null; city: string | null }[]> {
+    const where: Record<string, unknown> = { isMaster: true };
+    if (city) where['city'] = city;
+    const masters = await this.userRepo.find({
+      where,
+      select: ['id', 'firstName', 'lastName', 'address', 'city'],
       order: { firstName: 'ASC' },
     });
     return masters;
@@ -95,7 +120,7 @@ export class AppointmentsService {
     if (clientIds.length === 0) return [];
     return this.appointmentRepo.find({
       where: { clientId: In(clientIds) },
-      relations: ['service'],
+      relations: ['service', 'feedback'],
       order: { date: 'DESC', startTime: 'DESC' },
     });
   }
@@ -478,6 +503,7 @@ export class AppointmentsService {
         note: dto.note ?? null,
         referenceImageUrl: dto.referenceImageUrl ?? null,
         reminderEnabled: true,
+        paymentStatus: PaymentStatus.PENDING,
       });
       const saved = await this.appointmentRepo.save(appointment);
       const serviceForSlot = slot.serviceId ? await this.serviceRepo.findOne({ where: { id: slot.serviceId } }) : null;
@@ -506,6 +532,7 @@ export class AppointmentsService {
       note: dto.note ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
       reminderEnabled: true,
+      paymentStatus: PaymentStatus.PENDING,
     });
     const saved = await this.appointmentRepo.save(appointment);
     await this.notifyMasterOnNewBooking(masterId, client, saved, service.name);
@@ -632,6 +659,81 @@ export class AppointmentsService {
     return this.appointmentRepo.save(appointment);
   }
 
+  /** Submit a review for a completed appointment. One review per appointment. */
+  async submitReview(
+    user: User,
+    appointmentId: string,
+    rating: number,
+    comment: string | null,
+  ): Promise<AppointmentFeedback> {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      throw new BadRequestException('Rating must be an integer between 1 and 5');
+    }
+    const clientIds = await this.getMyClientIds(user);
+    if (clientIds.length === 0) throw new ForbiddenException('No client record found');
+
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId, clientId: In(clientIds) },
+      relations: ['feedback'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.status !== AppointmentStatus.DONE) {
+      throw new BadRequestException('Reviews can only be left for completed appointments');
+    }
+    if (appointment.feedback) throw new BadRequestException('Review already submitted');
+
+    const feedback = this.feedbackRepo.create({
+      appointmentId,
+      rating,
+      comment: comment?.trim() || null,
+    });
+    return this.feedbackRepo.save(feedback);
+  }
+
+  /** Public master profile: name, photo, aggregated rating, last 20 reviews. */
+  async getMasterPublicProfile(masterId: string) {
+    const master = await this.userRepo.findOne({
+      where: { id: masterId, isMaster: true },
+      select: ['id', 'firstName', 'lastName', 'photoUrl', 'address', 'bio'],
+    });
+    if (!master) throw new NotFoundException('Master not found');
+
+    const appointments = await this.appointmentRepo.find({
+      where: { masterId },
+      relations: ['feedback', 'service'],
+      select: ['id', 'date', 'service', 'feedback'],
+    });
+
+    const withFeedback = appointments.filter((a) => a.feedback);
+    const count = withFeedback.length;
+    const average =
+      count > 0
+        ? Math.round((withFeedback.reduce((s, a) => s + a.feedback!.rating, 0) / count) * 10) / 10
+        : null;
+
+    const reviews = withFeedback
+      .sort((a, b) => b.feedback!.createdAt.getTime() - a.feedback!.createdAt.getTime())
+      .slice(0, 20)
+      .map((a) => ({
+        rating: a.feedback!.rating,
+        comment: a.feedback!.comment,
+        serviceName: a.service?.name ?? null,
+        createdAt: a.feedback!.createdAt,
+      }));
+
+    return {
+      id: master.id,
+      firstName: master.firstName,
+      lastName: master.lastName,
+      photoUrl: master.photoUrl,
+      address: master.address,
+      bio: (master as unknown as { bio: string | null }).bio ?? null,
+      averageRating: average,
+      reviewCount: count,
+      reviews,
+    };
+  }
+
   /** Client cancels their own appointment. */
   async cancelByClient(user: User, appointmentId: string, reason: string) {
     const appointment = await this.appointmentRepo.findOne({
@@ -669,5 +771,249 @@ export class AppointmentsService {
     }
 
     return saved;
+  }
+
+  /** Create payment invoice for an appointment. */
+  async createPaymentInvoice(user: User, appointmentId: string) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId },
+      relations: ['client', 'master', 'service'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.client?.telegramId !== user.telegramId) {
+      throw new ForbiddenException('Only the booking client can create payment');
+    }
+    if (appointment.paymentStatus !== PaymentStatus.PENDING) {
+      throw new BadRequestException('This appointment is already paid or payment failed');
+    }
+
+    const serviceFeePercent = parseInt(this.configService.get('SERVICE_FEE_PERCENT') || '5', 10);
+    const basePrice = appointment.finalPrice
+      ? Number(appointment.finalPrice)
+      : appointment.service?.price
+        ? Number(appointment.service.price)
+        : 0;
+
+    if (basePrice === 0) {
+      throw new BadRequestException('Appointment price is not set');
+    }
+
+    const totalPrice = basePrice;
+    const invoiceId = `appt_${appointmentId}_${Date.now()}`;
+
+    appointment.totalPrice = totalPrice as any;
+    appointment.invoiceId = invoiceId;
+    await this.appointmentRepo.save(appointment);
+
+    const serviceName = appointment.service?.name ?? 'Запись';
+    const currency = 'EUR';
+    const amountCents = Math.round(totalPrice * 100);
+
+    const invoiceUrl = await this.botService.createInvoiceLink({
+      invoiceId,
+      title: serviceName,
+      description: `Запись на ${appointment.date} ${appointment.startTime.slice(0, 5)}`,
+      amountCents,
+      currency,
+    });
+
+    return {
+      invoiceId,
+      appointmentId,
+      amount: amountCents,
+      currency,
+      serviceName,
+      totalPrice: basePrice,
+      serviceFeePercent,
+      invoiceUrl,
+    };
+  }
+
+  /** Confirm payment from webhook. */
+  async confirmPayment(invoiceId: string) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { invoiceId },
+      relations: ['client', 'master', 'service'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    appointment.paymentStatus = PaymentStatus.PAID;
+    appointment.paidAt = new Date();
+    const saved = await this.appointmentRepo.save(appointment);
+
+    const clientTgId = appointment.client?.telegramId?.trim();
+    if (clientTgId) {
+      const dateStr = typeof appointment.date === 'string' ? appointment.date : (appointment.date as Date).toISOString().slice(0, 10);
+      const timeStr = (appointment.startTime || '').slice(0, 5);
+      const serviceName = appointment.service?.name ?? '';
+      const text = `✅ Платёж подтвержден. Вы записаны на ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}.`;
+      await this.botService.sendMessage(clientTgId, text);
+    }
+
+    return saved;
+  }
+
+  async getMasterPortfolio(masterId: string) {
+    const master = await this.userRepo.findOne({ where: { id: masterId, isMaster: true } });
+    if (!master) throw new NotFoundException('Master not found');
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  private getTimeBucket(time: string): 'morning' | 'afternoon' | 'evening' {
+    const h = parseInt(time.slice(0, 2), 10);
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  }
+
+  /**
+   * Personalized slot recommendations.
+   * Scoring: +3 service match, +2 day match, +1 time-bucket match.
+   * Cold-start (no history): rank by service popularity across all clients.
+   * Rating filter: masters with average rating below MIN_RATING are excluded.
+   */
+  async getRecommendations(user: User, masterId?: string) {
+    const MIN_RATING = 3.5;
+    const DAYS_AHEAD = 30;
+    const TOP_N = 8;
+
+    const today = getTodayInVilnius();
+    const toDate = new Date();
+    toDate.setDate(toDate.getDate() + DAYS_AHEAD);
+    const toStr = toDate.toISOString().slice(0, 10);
+
+    // Resolve masters eligible by rating
+    const masters = await this.userRepo.find({ where: { isMaster: true } });
+    const eligibleMasterIds: string[] = [];
+    for (const m of masters) {
+      if (masterId && m.id !== masterId) continue;
+      const feedbacks = await this.feedbackRepo.find({
+        where: { appointment: { masterId: m.id } } as any,
+      });
+      if (feedbacks.length === 0) {
+        // No reviews yet — include (give benefit of the doubt)
+        eligibleMasterIds.push(m.id);
+      } else {
+        const avg = feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length;
+        if (avg >= MIN_RATING) eligibleMasterIds.push(m.id);
+      }
+    }
+
+    if (eligibleMasterIds.length === 0) return [];
+
+    // Get available slots for all eligible masters
+    const slots = await this.slotRepo.find({
+      where: { masterId: In(eligibleMasterIds), forModels: false },
+      relations: ['service'],
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+
+    // Filter to future slots not already booked
+    const bookedSlotIds = new Set(
+      (await this.appointmentRepo.find({
+        where: { status: AppointmentStatus.SCHEDULED, slotId: In(slots.map((s) => s.id)) },
+        select: ['slotId'],
+      })).map((a) => a.slotId),
+    );
+
+    const freeSlots = slots.filter(
+      (s) => s.date >= today && s.date <= toStr && !bookedSlotIds.has(s.id),
+    );
+
+    if (freeSlots.length === 0) return [];
+
+    // Build user preference profile from booking history
+    const clientIds = await this.getMyClientIds(user);
+    const history = clientIds.length > 0
+      ? await this.appointmentRepo.find({
+          where: { clientId: In(clientIds), status: AppointmentStatus.DONE },
+          select: ['serviceId', 'date', 'startTime'],
+        })
+      : [];
+
+    // Service frequency map
+    const svcCount = new Map<string, number>();
+    const dayCount = new Map<number, number>();
+    const bucketCount = new Map<string, number>();
+
+    for (const a of history) {
+      if (a.serviceId) svcCount.set(a.serviceId, (svcCount.get(a.serviceId) ?? 0) + 1);
+      const dow = new Date(a.date + 'T12:00:00').getDay();
+      dayCount.set(dow, (dayCount.get(dow) ?? 0) + 1);
+      const bucket = this.getTimeBucket(a.startTime);
+      bucketCount.set(bucket, (bucketCount.get(bucket) ?? 0) + 1);
+    }
+
+    const hasHistory = history.length > 0;
+
+    // Preferred days/buckets from explicit profile settings (fallback for cold-start)
+    const freshUser = await this.userRepo.findOne({ where: { id: user.id } });
+    const profileDays = new Set(freshUser?.favoriteDays ?? []);
+    const profileBuckets = new Set(freshUser?.favoriteTimeBuckets ?? []);
+
+    // Cold-start: service popularity across ALL completed appointments
+    let globalSvcCount = new Map<string, number>();
+    if (!hasHistory) {
+      const allDone = await this.appointmentRepo.find({
+        where: { status: AppointmentStatus.DONE, masterId: In(eligibleMasterIds) },
+        select: ['serviceId'],
+      });
+      for (const a of allDone) {
+        if (a.serviceId) globalSvcCount.set(a.serviceId, (globalSvcCount.get(a.serviceId) ?? 0) + 1);
+      }
+    }
+
+    // Score each free slot
+    const scored = freeSlots.map((slot) => {
+      let score = 0;
+      const svcId = slot.serviceId ?? '';
+      const dow = new Date(slot.date + 'T12:00:00').getDay();
+      const bucket = this.getTimeBucket(slot.startTime);
+
+      if (hasHistory) {
+        // Personalized scoring
+        score += (svcCount.get(svcId) ?? 0) * 3;
+        score += (dayCount.get(dow) ?? 0) * 2;
+        score += (bucketCount.get(bucket) ?? 0) * 1;
+        // Boost from explicit profile preferences
+        if (profileDays.has(dow)) score += 2;
+        if (profileBuckets.has(bucket)) score += 1;
+      } else {
+        // Cold-start: popularity + profile prefs
+        score += (globalSvcCount.get(svcId) ?? 0) * 3;
+        if (profileDays.has(dow)) score += 2;
+        if (profileBuckets.has(bucket)) score += 1;
+        // Small recency bias: earlier slots score slightly higher when equal
+        score += 0;
+      }
+
+      return { slot, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score || a.slot.date.localeCompare(b.slot.date) || a.slot.startTime.localeCompare(b.slot.startTime));
+
+    const top = scored.slice(0, TOP_N);
+
+    const masterMap = new Map(masters.map((m) => [m.id, m]));
+
+    return top.map(({ slot, score }) => {
+      const master = masterMap.get(slot.masterId);
+      return {
+        slotId: slot.id,
+        masterId: slot.masterId,
+        masterName: master ? [master.firstName, master.lastName].filter(Boolean).join(' ') : 'Мастер',
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        serviceId: slot.serviceId,
+        serviceName: (slot as any).service?.name ?? null,
+        servicePrice: (slot as any).service?.price ?? null,
+        priceModifier: slot.priceModifier,
+        score,
+      };
+    });
   }
 }

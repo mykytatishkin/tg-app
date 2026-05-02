@@ -1,11 +1,23 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
+import { setLocale, getLocale, LOCALE_LABELS, SUPPORTED } from '../i18n/index.js';
 
 const router = useRouter();
+const { t } = useI18n();
 const { hapticFeedback } = useTelegramWebApp();
+
+const currentLocale = ref(getLocale());
+const localeOptions = SUPPORTED.map((l) => ({ value: l, label: LOCALE_LABELS[l] }));
+
+function onLocaleChange(lang) {
+  setLocale(lang);
+  currentLocale.value = lang;
+  hapticFeedback?.('light');
+}
 
 const profile = ref(null);
 const instagram = ref('');
@@ -18,20 +30,26 @@ const favoriteDays = ref([]);
 const favoriteTimeBuckets = ref([]);
 const savingPrefs = ref(false);
 
-const DAY_LABELS = [
-  { value: 1, label: 'Пн' },
-  { value: 2, label: 'Вт' },
-  { value: 3, label: 'Ср' },
-  { value: 4, label: 'Чт' },
-  { value: 5, label: 'Пт' },
-  { value: 6, label: 'Сб' },
-  { value: 0, label: 'Вс' },
-];
-const TIME_LABELS = [
-  { value: 'morning', label: 'Утро' },
-  { value: 'afternoon', label: 'День' },
-  { value: 'evening', label: 'Вечер' },
-];
+const DAY_LABELS = computed(() => {
+  const days = t('profile.days');
+  return [
+    { value: 1, label: days[1] },
+    { value: 2, label: days[2] },
+    { value: 3, label: days[3] },
+    { value: 4, label: days[4] },
+    { value: 5, label: days[5] },
+    { value: 6, label: days[6] },
+    { value: 0, label: days[0] },
+  ];
+});
+const TIME_LABELS = computed(() => {
+  const tb = t('profile.timeBuckets');
+  return [
+    { value: 'morning', label: tb.morning },
+    { value: 'afternoon', label: tb.afternoon },
+    { value: 'evening', label: tb.evening },
+  ];
+});
 
 async function load() {
   loading.value = true;
@@ -119,15 +137,15 @@ onMounted(load);
         class="p-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f0f0f0)]"
         @click="goBack"
       >
-        ← Назад
+        {{ t('common.back') }}
       </button>
-      <h1 class="text-2xl font-bold">Мой профиль</h1>
+      <h1 class="text-2xl font-bold">{{ t('profile.title') }}</h1>
     </div>
 
     <p v-if="error" class="text-red-500 mb-4">{{ error }}</p>
     <p v-if="message" class="text-[var(--tg-theme-hint-color,#999)] mb-4">{{ message }}</p>
 
-    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
+    <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">{{ t('common.loading') }}</div>
 
     <template v-else-if="profile">
       <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6">
@@ -151,12 +169,30 @@ onMounted(load);
           class="px-4 py-2 rounded-lg bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#e8e8e8)]"
           :disabled="saving"
         >
-          {{ saving ? 'Сохранение…' : 'Сохранить' }}
+          {{ saving ? t('common.saving') : t('common.save') }}
         </button>
       </form>
+
+      <!-- Language selector -->
+      <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6">
+        <div class="text-sm font-medium mb-3">{{ t('profile.language') }}</div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="opt in localeOptions"
+            :key="opt.value"
+            type="button"
+            class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            :class="currentLocale === opt.value ? 'bg-[var(--tg-theme-button-color,#1a1a1a)] text-[var(--tg-theme-button-text-color,#fff)]' : 'bg-[var(--tg-theme-bg-color,#e8e8e8)] text-[var(--tg-theme-text-color,#000)]'"
+            @click="onLocaleChange(opt.value)"
+          >
+            {{ opt.label }}
+          </button>
+        </div>
+      </div>
+
       <!-- Favorite days & time preferences -->
       <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-6">
-        <div class="text-sm font-medium mb-3">Любимые дни</div>
+        <div class="text-sm font-medium mb-3">{{ t('profile.favDays') }}</div>
         <div class="flex flex-wrap gap-2 mb-4">
           <button
             v-for="d in DAY_LABELS"
@@ -169,7 +205,7 @@ onMounted(load);
             {{ d.label }}
           </button>
         </div>
-        <div class="text-sm font-medium mb-3">Любимое время</div>
+        <div class="text-sm font-medium mb-3">{{ t('profile.favTimes') }}</div>
         <div class="flex flex-wrap gap-2 mb-4">
           <button
             v-for="t in TIME_LABELS"
@@ -191,7 +227,7 @@ onMounted(load);
           :disabled="savingPrefs"
           @click="savePreferences"
         >
-          {{ savingPrefs ? 'Сохранение…' : 'Сохранить предпочтения' }}
+          {{ savingPrefs ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </template>
@@ -225,16 +261,24 @@ onMounted(load);
     </div>
 
     <div class="mt-6 pt-6 border-t border-[var(--tg-theme-section-separator-color,#e0e0e0)]">
-      <h2 class="text-lg font-medium mb-2">Предложение изменений</h2>
+      <h2 class="text-lg font-medium mb-2">{{ t('profile.feedback') }}</h2>
       <p class="text-sm text-[var(--tg-theme-hint-color,#999)] mb-3">
-        Есть идея по улучшению приложения? Опишите её — мы учтём.
+        Есть идея по улучшению или нашли ошибку? Напишите нам.
       </p>
-      <RouterLink
-        to="/suggestions/new"
-        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
-      >
-        Оставить предложение →
-      </RouterLink>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink
+          to="/suggestions/new"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
+        >
+          Оставить предложение →
+        </RouterLink>
+        <RouterLink
+          to="/suggestions/new?category=bug"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] text-[var(--tg-theme-text-color,#000)] no-underline font-medium"
+        >
+          {{ t('profile.bugReport') }}
+        </RouterLink>
+      </div>
     </div>
   </div>
 </template>

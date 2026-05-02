@@ -3,13 +3,22 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
   Query,
   UseGuards,
   Request,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
 import type { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MasterOrAdminGuard } from '../auth/guards/master-or-admin.guard';
@@ -33,6 +42,19 @@ export class CrmController {
   @Get('masters')
   getMasters(@Request() req: { user: User }) {
     return this.crmService.getMasters(req.user);
+  }
+
+  @Get('masters/profile')
+  getMasterProfile(@Request() req: { user: User }) {
+    return this.crmService.getMasterProfile(req.user);
+  }
+
+  @Patch('masters/profile')
+  updateMasterProfile(
+    @Request() req: { user: User },
+    @Body() body: { bio?: string },
+  ) {
+    return this.crmService.updateMasterProfile(req.user, body);
   }
 
   @Get('clients')
@@ -229,6 +251,49 @@ export class CrmController {
   @Delete('appointments/:id')
   deleteAppointment(@Request() req: { user: User }, @Param('id') id: string) {
     return this.crmService.deleteAppointment(req.user, id);
+  }
+
+  @Get('portfolio')
+  listPortfolio(@Request() req: { user: User }) {
+    return this.crmService.listPortfolio(req.user);
+  }
+
+  @Post('portfolio/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          const dir = 'uploads/portfolio';
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('image/')) {
+          cb(new BadRequestException('Only image files are allowed'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+    }),
+  )
+  uploadPortfolioPhoto(
+    @Request() req: { user: User },
+    @UploadedFile() file: Express.Multer.File,
+    @Body('tag') tag?: string,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const url = `/uploads/portfolio/${file.filename}`;
+    return this.crmService.addPortfolioPhoto(req.user, url, tag || null);
+  }
+
+  @Delete('portfolio/:id')
+  deletePortfolioPhoto(@Request() req: { user: User }, @Param('id') id: string) {
+    return this.crmService.deletePortfolioPhoto(req.user, id);
   }
 
   @Get('calendar/feed-url')

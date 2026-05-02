@@ -8,6 +8,8 @@ import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
 import { Appointment } from '../crm/entities/appointment.entity';
+import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
+import { PortfolioPhoto } from '../crm/entities/portfolio-photo.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BotModule } from '../bot/bot.module';
 
@@ -18,7 +20,9 @@ import { BotModule } from '../bot/bot.module';
       Client,
       Service,
       Appointment,
+      AppointmentFeedback,
       AvailabilitySlot,
+      PortfolioPhoto,
     ]),
     BotModule,
   ],

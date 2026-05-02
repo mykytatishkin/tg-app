@@ -1,7 +1,10 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { unlink } from 'fs/promises';
+import { join } from 'path';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Between, LessThanOrEqual, Repository } from 'typeorm';
+import { PortfolioPhoto } from './entities/portfolio-photo.entity';
 import { Client } from './entities/client.entity';
 import { Service } from './entities/service.entity';
 import { AvailabilitySlot } from './entities/availability-slot.entity';
@@ -43,6 +46,8 @@ export class CrmService {
     private scheduledBroadcastRepo: Repository<ScheduledDiscountBroadcast>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(PortfolioPhoto)
+    private portfolioRepo: Repository<PortfolioPhoto>,
     private botService: BotService,
     private clientRemindersService: ClientRemindersService,
     private configService: ConfigService,
@@ -87,6 +92,24 @@ export class CrmService {
       order: { firstName: 'ASC', lastName: 'ASC' },
     });
     return users.map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName }));
+  }
+
+  async getMasterProfile(user: User): Promise<{ bio: string | null }> {
+    const master = await this.userRepo.findOne({
+      where: { id: user.id },
+      select: ['bio'],
+    });
+    return { bio: master?.bio ?? null };
+  }
+
+  async updateMasterProfile(user: User, body: { bio?: string }): Promise<{ bio: string | null }> {
+    const bio = body.bio !== undefined
+      ? (body.bio.trim().slice(0, 500) || null)
+      : undefined;
+    if (bio !== undefined) {
+      await this.userRepo.update({ id: user.id }, { bio });
+    }
+    return this.getMasterProfile(user);
   }
 
   /** All telegramIds for discount notification: clients of this master + registered users. Used for second wave (1h later). */
@@ -1327,5 +1350,42 @@ export class CrmService {
 
     const feedUrl = `${baseUrl}/api/calendar/feed/${master.calendarToken}.ics`;
     return { feedUrl };
+  }
+
+  async listPortfolio(user: User): Promise<PortfolioPhoto[]> {
+    const masterId = user.isMaster ? user.id : null;
+    if (!masterId) throw new ForbiddenException('Only masters can manage portfolio');
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addPortfolioPhoto(user: User, url: string, tag: string | null): Promise<PortfolioPhoto> {
+    if (!user.isMaster) throw new ForbiddenException('Only masters can manage portfolio');
+    const photo = this.portfolioRepo.create({ masterId: user.id, url, tag: tag || null });
+    return this.portfolioRepo.save(photo);
+  }
+
+  async deletePortfolioPhoto(user: User, id: string): Promise<{ ok: boolean }> {
+    if (!user.isMaster) throw new ForbiddenException('Only masters can manage portfolio');
+    const photo = await this.portfolioRepo.findOne({ where: { id, masterId: user.id } });
+    if (!photo) throw new NotFoundException('Photo not found');
+    // Delete physical file
+    const filename = photo.url.replace(/^\/uploads\/portfolio\//, '');
+    try {
+      await unlink(join(process.cwd(), 'uploads', 'portfolio', filename));
+    } catch {
+      // File might already be gone
+    }
+    await this.portfolioRepo.remove(photo);
+    return { ok: true };
+  }
+
+  async getMasterPortfolio(masterId: string): Promise<PortfolioPhoto[]> {
+    return this.portfolioRepo.find({
+      where: { masterId },
+      order: { createdAt: 'DESC' },
+    });
   }
 }
