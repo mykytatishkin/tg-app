@@ -40,6 +40,7 @@ export default {
       broadcast: 'Broadcast',
       suggestions: 'Suggestions',
       settings: 'Profile settings',
+      subscriptions: 'Subscriptions',
       myAppointments: 'My appointments',
       book: 'Book',
       profile: 'My profile',

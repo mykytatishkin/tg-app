@@ -40,6 +40,7 @@ export default {
       broadcast: 'Siuntimas',
       suggestions: 'Pasiūlymai',
       settings: 'Profilio nustatymai',
+      subscriptions: 'Prenumeratos',
       myAppointments: 'Mano įrašai',
       book: 'Registruotis',
       profile: 'Mano profilis',

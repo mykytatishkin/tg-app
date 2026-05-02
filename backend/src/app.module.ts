@@ -12,6 +12,7 @@ import { BackupModule } from './backup/backup.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { CustomTimeRequestsModule } from './custom-time-requests/custom-time-requests.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { CalendarModule } from './calendar/calendar.module';
     SuggestionsModule,
     CustomTimeRequestsModule,
     CalendarModule,
+    SubscriptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

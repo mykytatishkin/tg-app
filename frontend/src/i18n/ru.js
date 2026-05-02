@@ -40,6 +40,7 @@ export default {
       broadcast: 'Рассылка',
       suggestions: 'Предложения',
       settings: 'Настройки профиля',
+      subscriptions: 'Подписки',
       myAppointments: 'Мои записи',
       book: 'Записаться',
       profile: 'Мой профиль',

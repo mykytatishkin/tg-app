@@ -8,22 +8,35 @@ const router = useRouter();
 const { hapticFeedback } = useTelegramWebApp();
 
 const bio = ref('');
+const subscription = ref(null);
 const loading = ref(true);
 const saving = ref(false);
 const error = ref(null);
 const message = ref(null);
 
+const TIER_LABELS = { starter: 'Starter', pro: 'Pro', business: 'Business' };
+const STATUS_LABELS = { active: 'Активна', expired: 'Истекла', suspended: 'Заблокирована' };
+
 async function load() {
   loading.value = true;
   error.value = null;
   try {
-    const profile = await api.get('/crm/masters/profile');
+    const [profile, sub] = await Promise.all([
+      api.get('/crm/masters/profile'),
+      api.get('/subscriptions/mine').catch(() => null),
+    ]);
     bio.value = profile.bio ?? '';
+    subscription.value = sub;
   } catch (e) {
     error.value = e.message;
   } finally {
     loading.value = false;
   }
+}
+
+function formatDate(d) {
+  if (!d) return '∞';
+  return new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 async function save() {
@@ -64,6 +77,25 @@ onMounted(load);
     <div v-if="loading" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка…</div>
 
     <template v-else>
+      <!-- Subscription status card -->
+      <div v-if="subscription" class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-4">
+        <div class="text-sm font-medium mb-1">Подписка</div>
+        <div class="flex items-center gap-2">
+          <span class="text-base font-semibold">{{ TIER_LABELS[subscription.tier] ?? subscription.tier }}</span>
+          <span
+            class="text-xs px-2 py-0.5 rounded-full"
+            :class="subscription.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'"
+          >
+            {{ STATUS_LABELS[subscription.status] ?? subscription.status }}
+          </span>
+        </div>
+        <div class="text-xs text-[var(--tg-theme-hint-color,#999)] mt-1">
+          Действует до: {{ formatDate(subscription.validUntil) }}
+        </div>
+        <div v-if="!subscription.isActive" class="mt-2 text-xs text-red-500">
+          Подписка неактивна — новые записи недоступны. Обратитесь к администратору.
+        </div>
+      </div>
       <div class="rounded-xl p-4 bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] mb-4">
         <label class="block text-sm font-medium mb-2">
           Bio

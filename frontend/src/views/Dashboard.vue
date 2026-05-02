@@ -65,6 +65,7 @@ const adminNavItems = computed(() => [
   { path: '/admin/broadcast', label: t('dashboard.nav.broadcast'), icon: '📢', adminOnly: true },
   { path: '/admin/suggestions', label: t('dashboard.nav.suggestions'), icon: '📩', adminOnly: true },
   { path: '/admin/settings', label: t('dashboard.nav.settings'), icon: '⚙️' },
+  { path: '/admin/subscriptions', label: t('dashboard.nav.subscriptions'), icon: '💳', adminOnly: true },
 ]);
 
 const userNavItems = computed(() => [

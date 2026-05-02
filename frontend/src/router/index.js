@@ -152,6 +152,12 @@ const routes = [
     component: () => import('../views/admin/Portfolio.vue'),
     meta: { requiresAuth: true, requiresMaster: true },
   },
+  {
+    path: '/admin/subscriptions',
+    name: 'AdminSubscriptions',
+    component: () => import('../views/admin/Subscriptions.vue'),
+    meta: { requiresAuth: true, requiresMaster: true },
+  },
 ];
 
 const router = createRouter({
