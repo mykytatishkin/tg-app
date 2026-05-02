@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, IsNull, LessThan, Repository } from 'typeorm';
 import { User } from '../auth/entities/user.entity';
 import { Client } from '../crm/entities/client.entity';
 import { Service } from '../crm/entities/service.entity';
-import { Appointment, AppointmentSource, AppointmentStatus } from '../crm/entities/appointment.entity';
+import { Appointment, AppointmentSource, AppointmentStatus, PaymentStatus } from '../crm/entities/appointment.entity';
 import { AppointmentFeedback } from '../crm/entities/appointment-feedback.entity';
 import { AvailabilitySlot } from '../crm/entities/availability-slot.entity';
 import { BookAppointmentDto } from '../crm/dto/book-appointment.dto';
@@ -28,6 +29,7 @@ export class AppointmentsService {
     @InjectRepository(AvailabilitySlot)
     private slotRepo: Repository<AvailabilitySlot>,
     private botService: BotService,
+    private configService: ConfigService,
   ) {}
 
   private async getMasterId(): Promise<string> {
@@ -481,6 +483,7 @@ export class AppointmentsService {
         note: dto.note ?? null,
         referenceImageUrl: dto.referenceImageUrl ?? null,
         reminderEnabled: true,
+        paymentStatus: PaymentStatus.PENDING,
       });
       const saved = await this.appointmentRepo.save(appointment);
       const serviceForSlot = slot.serviceId ? await this.serviceRepo.findOne({ where: { id: slot.serviceId } }) : null;
@@ -509,6 +512,7 @@ export class AppointmentsService {
       note: dto.note ?? null,
       referenceImageUrl: dto.referenceImageUrl ?? null,
       reminderEnabled: true,
+      paymentStatus: PaymentStatus.PENDING,
     });
     const saved = await this.appointmentRepo.save(appointment);
     await this.notifyMasterOnNewBooking(masterId, client, saved, service.name);
@@ -743,6 +747,86 @@ export class AppointmentsService {
       const serviceName = appointment.service?.name ?? '';
       const text = `❌ Клиент отменил запись: ${dateStr} ${timeStr}${serviceName ? `, ${this.escapeHtml(serviceName)}` : ''}. Клиент: ${mention}. Причина: ${this.escapeHtml(reasonText)}`;
       await this.botService.sendMessage(masterTgId, text);
+    }
+
+    return saved;
+  }
+
+  /** Create payment invoice for an appointment. */
+  async createPaymentInvoice(user: User, appointmentId: string) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { id: appointmentId },
+      relations: ['client', 'master', 'service'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.client?.telegramId !== user.telegramId) {
+      throw new ForbiddenException('Only the booking client can create payment');
+    }
+    if (appointment.paymentStatus !== PaymentStatus.PENDING) {
+      throw new BadRequestException('This appointment is already paid or payment failed');
+    }
+
+    const serviceFeePercent = parseInt(this.configService.get('SERVICE_FEE_PERCENT') || '5', 10);
+    const basePrice = appointment.finalPrice
+      ? Number(appointment.finalPrice)
+      : appointment.service?.price
+        ? Number(appointment.service.price)
+        : 0;
+
+    if (basePrice === 0) {
+      throw new BadRequestException('Appointment price is not set');
+    }
+
+    const totalPrice = basePrice;
+    const invoiceId = `appt_${appointmentId}_${Date.now()}`;
+
+    appointment.totalPrice = totalPrice as any;
+    appointment.invoiceId = invoiceId;
+    await this.appointmentRepo.save(appointment);
+
+    const serviceName = appointment.service?.name ?? 'Запись';
+    const currency = 'EUR';
+    const amountCents = Math.round(totalPrice * 100);
+
+    const invoiceUrl = await this.botService.createInvoiceLink({
+      invoiceId,
+      title: serviceName,
+      description: `Запись на ${appointment.date} ${appointment.startTime.slice(0, 5)}`,
+      amountCents,
+      currency,
+    });
+
+    return {
+      invoiceId,
+      appointmentId,
+      amount: amountCents,
+      currency,
+      serviceName,
+      totalPrice: basePrice,
+      serviceFeePercent,
+      invoiceUrl,
+    };
+  }
+
+  /** Confirm payment from webhook. */
+  async confirmPayment(invoiceId: string) {
+    const appointment = await this.appointmentRepo.findOne({
+      where: { invoiceId },
+      relations: ['client', 'master', 'service'],
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    appointment.paymentStatus = PaymentStatus.PAID;
+    appointment.paidAt = new Date();
+    const saved = await this.appointmentRepo.save(appointment);
+
+    const clientTgId = appointment.client?.telegramId?.trim();
+    if (clientTgId) {
+      const dateStr = typeof appointment.date === 'string' ? appointment.date : (appointment.date as Date).toISOString().slice(0, 10);
+      const timeStr = (appointment.startTime || '').slice(0, 5);
+      const serviceName = appointment.service?.name ?? '';
+      const text = `✅ Платёж подтвержден. Вы записаны на ${dateStr} ${timeStr}${serviceName ? `, ${serviceName}` : ''}.`;
+      await this.botService.sendMessage(clientTgId, text);
     }
 
     return saved;
