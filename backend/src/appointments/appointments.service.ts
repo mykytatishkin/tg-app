@@ -861,4 +861,159 @@ export class AppointmentsService {
       order: { createdAt: 'DESC' },
     });
   }
+
+  private getTimeBucket(time: string): 'morning' | 'afternoon' | 'evening' {
+    const h = parseInt(time.slice(0, 2), 10);
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  }
+
+  /**
+   * Personalized slot recommendations.
+   * Scoring: +3 service match, +2 day match, +1 time-bucket match.
+   * Cold-start (no history): rank by service popularity across all clients.
+   * Rating filter: masters with average rating below MIN_RATING are excluded.
+   */
+  async getRecommendations(user: User, masterId?: string) {
+    const MIN_RATING = 3.5;
+    const DAYS_AHEAD = 30;
+    const TOP_N = 8;
+
+    const today = getTodayInVilnius();
+    const toDate = new Date();
+    toDate.setDate(toDate.getDate() + DAYS_AHEAD);
+    const toStr = toDate.toISOString().slice(0, 10);
+
+    // Resolve masters eligible by rating
+    const masters = await this.userRepo.find({ where: { isMaster: true } });
+    const eligibleMasterIds: string[] = [];
+    for (const m of masters) {
+      if (masterId && m.id !== masterId) continue;
+      const feedbacks = await this.feedbackRepo.find({
+        where: { appointment: { masterId: m.id } } as any,
+      });
+      if (feedbacks.length === 0) {
+        // No reviews yet — include (give benefit of the doubt)
+        eligibleMasterIds.push(m.id);
+      } else {
+        const avg = feedbacks.reduce((s, f) => s + f.rating, 0) / feedbacks.length;
+        if (avg >= MIN_RATING) eligibleMasterIds.push(m.id);
+      }
+    }
+
+    if (eligibleMasterIds.length === 0) return [];
+
+    // Get available slots for all eligible masters
+    const slots = await this.slotRepo.find({
+      where: { masterId: In(eligibleMasterIds), forModels: false },
+      relations: ['service'],
+      order: { date: 'ASC', startTime: 'ASC' },
+    });
+
+    // Filter to future slots not already booked
+    const bookedSlotIds = new Set(
+      (await this.appointmentRepo.find({
+        where: { status: AppointmentStatus.SCHEDULED, slotId: In(slots.map((s) => s.id)) },
+        select: ['slotId'],
+      })).map((a) => a.slotId),
+    );
+
+    const freeSlots = slots.filter(
+      (s) => s.date >= today && s.date <= toStr && !bookedSlotIds.has(s.id),
+    );
+
+    if (freeSlots.length === 0) return [];
+
+    // Build user preference profile from booking history
+    const clientIds = await this.getMyClientIds(user);
+    const history = clientIds.length > 0
+      ? await this.appointmentRepo.find({
+          where: { clientId: In(clientIds), status: AppointmentStatus.DONE },
+          select: ['serviceId', 'date', 'startTime'],
+        })
+      : [];
+
+    // Service frequency map
+    const svcCount = new Map<string, number>();
+    const dayCount = new Map<number, number>();
+    const bucketCount = new Map<string, number>();
+
+    for (const a of history) {
+      if (a.serviceId) svcCount.set(a.serviceId, (svcCount.get(a.serviceId) ?? 0) + 1);
+      const dow = new Date(a.date + 'T12:00:00').getDay();
+      dayCount.set(dow, (dayCount.get(dow) ?? 0) + 1);
+      const bucket = this.getTimeBucket(a.startTime);
+      bucketCount.set(bucket, (bucketCount.get(bucket) ?? 0) + 1);
+    }
+
+    const hasHistory = history.length > 0;
+
+    // Preferred days/buckets from explicit profile settings (fallback for cold-start)
+    const freshUser = await this.userRepo.findOne({ where: { id: user.id } });
+    const profileDays = new Set(freshUser?.favoriteDays ?? []);
+    const profileBuckets = new Set(freshUser?.favoriteTimeBuckets ?? []);
+
+    // Cold-start: service popularity across ALL completed appointments
+    let globalSvcCount = new Map<string, number>();
+    if (!hasHistory) {
+      const allDone = await this.appointmentRepo.find({
+        where: { status: AppointmentStatus.DONE, masterId: In(eligibleMasterIds) },
+        select: ['serviceId'],
+      });
+      for (const a of allDone) {
+        if (a.serviceId) globalSvcCount.set(a.serviceId, (globalSvcCount.get(a.serviceId) ?? 0) + 1);
+      }
+    }
+
+    // Score each free slot
+    const scored = freeSlots.map((slot) => {
+      let score = 0;
+      const svcId = slot.serviceId ?? '';
+      const dow = new Date(slot.date + 'T12:00:00').getDay();
+      const bucket = this.getTimeBucket(slot.startTime);
+
+      if (hasHistory) {
+        // Personalized scoring
+        score += (svcCount.get(svcId) ?? 0) * 3;
+        score += (dayCount.get(dow) ?? 0) * 2;
+        score += (bucketCount.get(bucket) ?? 0) * 1;
+        // Boost from explicit profile preferences
+        if (profileDays.has(dow)) score += 2;
+        if (profileBuckets.has(bucket)) score += 1;
+      } else {
+        // Cold-start: popularity + profile prefs
+        score += (globalSvcCount.get(svcId) ?? 0) * 3;
+        if (profileDays.has(dow)) score += 2;
+        if (profileBuckets.has(bucket)) score += 1;
+        // Small recency bias: earlier slots score slightly higher when equal
+        score += 0;
+      }
+
+      return { slot, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score || a.slot.date.localeCompare(b.slot.date) || a.slot.startTime.localeCompare(b.slot.startTime));
+
+    const top = scored.slice(0, TOP_N);
+
+    const masterMap = new Map(masters.map((m) => [m.id, m]));
+
+    return top.map(({ slot, score }) => {
+      const master = masterMap.get(slot.masterId);
+      return {
+        slotId: slot.id,
+        masterId: slot.masterId,
+        masterName: master ? [master.firstName, master.lastName].filter(Boolean).join(' ') : 'Мастер',
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        serviceId: slot.serviceId,
+        serviceName: (slot as any).service?.name ?? null,
+        servicePrice: (slot as any).service?.price ?? null,
+        priceModifier: slot.priceModifier,
+        score,
+      };
+    });
+  }
 }

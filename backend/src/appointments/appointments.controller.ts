@@ -147,6 +147,14 @@ export class AppointmentsController {
     return this.appointmentsService.getMasterPortfolio(id);
   }
 
+  @Get('recommendations')
+  getRecommendations(
+    @Request() req: { user: User },
+    @Query('masterId') masterId?: string,
+  ) {
+    return this.appointmentsService.getRecommendations(req.user, masterId);
+  }
+
   /** Webhook called by Telegram/payment provider to confirm a payment. */
   @Post('payment/confirm')
   confirmPayment(

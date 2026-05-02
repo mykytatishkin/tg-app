@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { api } from '../api/client';
 import { useTelegramWebApp } from '../composables/useTelegramWebApp';
 import DateCalendar from '../components/DateCalendar.vue';
+import RecommendedSlots from '../components/RecommendedSlots.vue';
 import { useCity } from '../composables/useCity';
 
 const router = useRouter();
@@ -175,6 +176,26 @@ function onMasterChange() {
   }
 }
 
+function onRecommendationSelect(rec) {
+  hapticFeedback?.('light');
+  // Pre-fill the booking form from the recommendation
+  bookingMode.value = 'slot';
+  forModelsMode.value = false;
+  selectedMasterId.value = rec.masterId;
+  if (rec.serviceId) selectedServiceId.value = rec.serviceId;
+  selectedSlot.value = {
+    id: rec.slotId,
+    date: rec.date,
+    startTime: rec.startTime,
+    endTime: rec.endTime,
+    priceModifier: rec.priceModifier,
+    serviceName: rec.serviceName,
+  };
+  selectedDate.value = rec.date;
+  // Scroll down to the booking form
+  window.scrollTo({ top: 400, behavior: 'smooth' });
+}
+
 function onServiceChange() {
   if (bookingMode.value !== 'customTime') loadSlots();
 }
@@ -344,6 +365,11 @@ watch(slots, (newSlots) => {
       </button>
       <h1 class="text-2xl font-bold">Записаться</h1>
     </div>
+
+    <RecommendedSlots
+      :master-id="selectedMasterId"
+      @select="onRecommendationSelect"
+    />
 
     <p v-if="error" class="text-neutral-400 mb-4">{{ error }}</p>
 
