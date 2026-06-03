@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: tg-app-postgres
+    container_name: tg-app-postgres-ari
     environment:
       POSTGRES_USER: tgapp
       POSTGRES_PASSWORD: tgapp_secret
@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: tg-app-redis
+    container_name: tg-app-redis-ari
     ports:
       - "6379:6379"
     volumes:

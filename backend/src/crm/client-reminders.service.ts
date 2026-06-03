@@ -110,6 +110,16 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
 
       if (lastVisitEndOfDay + TWO_WEEKS_MS > now) continue;
 
+      // Skip reminder if client has an active future appointment
+      const futureAppointment = await this.appointmentRepo
+        .createQueryBuilder('a')
+        .where('a.clientId = :clientId', { clientId: client.id })
+        .andWhere('a.status = :status', { status: AppointmentStatus.SCHEDULED })
+        .andWhere('a.date >= :today', { today: todayStr })
+        .limit(1)
+        .getOne();
+      if (futureAppointment) continue;
+
       if (client.lastReminderSentAt) {
         const sentAt = client.lastReminderSentAt.getTime();
         if (sentAt >= lastVisitEndOfDay && now - sentAt < MIN_GAP_BETWEEN_REMINDERS_MS) continue;
@@ -131,15 +141,27 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
         }
       } else {
         const addressPart = masterAddress ? ` Ждём вас по адресу:${getClickableAddressHtml(masterAddress)}` : ' Ждём вас!';
-        const text = `приветик, ${client.name || 'приветик'}!! напоминаю, что пришло время записаться на ноготочки💓 
+        const text = `приветик, ${client.name || 'приветик'}!! напоминаю, что пришло время записаться на ноготочки💓
 сейчас как раз у тебя есть шанс выиграть 40€, угадав пароль от сейфа
-шанс выйграть с каждым днем увеличивается 🙈${addressPart}`;
-        const sent = bookingBaseUrl
-          ? await this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingBaseUrl)
-          : await this.botService.sendMessage(tgId, text);
-        if (sent) {
-          await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
-          sentToTelegramIdsThisRun.add(tgId);
+шанс выйграть с каждым днем увеличивается 🙈${addressPart}
+
+Если не нашла удобное время — можешь выбрать своё за небольшую доплату 💅`;
+        if (bookingBaseUrl) {
+          const customTimeUrl = `${bookingBaseUrl}?mode=customTime&masterId=${encodeURIComponent(client.masterId)}`;
+          const sent = await this.botService.sendMessageWithWebAppButtons(tgId, text, [
+            { label: 'Записаться', url: bookingBaseUrl },
+            { label: 'Своё время', url: customTimeUrl },
+          ]);
+          if (sent) {
+            await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
+            sentToTelegramIdsThisRun.add(tgId);
+          }
+        } else {
+          const sent = await this.botService.sendMessage(tgId, text);
+          if (sent) {
+            await this.clientRepo.update({ id: client.id }, { lastReminderSentAt: new Date() });
+            sentToTelegramIdsThisRun.add(tgId);
+          }
         }
       }
     }
@@ -222,15 +244,21 @@ export class ClientRemindersService implements OnModuleInit, OnModuleDestroy {
       buttons.push({ label, url });
     }
 
-    let text = `приветик! напоминаю, что пришло время записаться на ноготочки💓 
+    let text = `приветик! напоминаю, что пришло время записаться на ноготочки💓
 сейчас как раз у тебя есть шанс выиграть 40€, угадав пароль от сейфа
 шанс выйграть с каждым днем увеличивается 🙈`;
     if (masterAddress) text += ` Адрес:${getClickableAddressHtml(masterAddress)}`;
+    text += `\n\nЕсли не нашла удобное время — можешь выбрать своё за небольшую доплату 💅`;
 
+    const customTimeUrl = `${bookingBaseUrl}?mode=customTime&masterId=${encodeURIComponent(client.masterId)}`;
     if (buttons.length > 0) {
+      buttons.push({ label: 'Своё время', url: customTimeUrl });
       return this.botService.sendMessageWithWebAppButtons(tgId, text, buttons);
     }
-    return this.botService.sendMessageWithWebAppButton(tgId, text, 'Записаться', bookingBaseUrl);
+    return this.botService.sendMessageWithWebAppButtons(tgId, text, [
+      { label: 'Записаться', url: bookingBaseUrl },
+      { label: 'Своё время', url: customTimeUrl },
+    ]);
   }
 
   /** Send "14-day" style reminder to a client (one button "Записаться"). Called by master from UI. */

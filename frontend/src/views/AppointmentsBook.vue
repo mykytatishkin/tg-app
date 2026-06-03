@@ -111,14 +111,8 @@ async function loadServices() {
     );
     servicesLoadedForMasterId.value = selectedMasterId.value;
     if (services.value.length) selectedServiceId.value = services.value[0].id;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadServices',message:'after load services',data:{servicesCount:services.value.length,selectedServiceIdAfter:selectedServiceId.value||null},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
   } catch (e) {
     error.value = e.message;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadServices',message:'loadServices error',data:{err:String(e?.message)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
   } finally {
     loadingServices.value = false;
   }
@@ -148,14 +142,8 @@ async function loadSlots() {
           `/appointments/available-slots?masterId=${encodeURIComponent(selectedMasterId.value)}&serviceId=${encodeURIComponent(selectedServiceId.value)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
         );
     slots.value = list;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadSlots',message:'loadSlots success',data:{slotsCount:Array.isArray(list)?list.length:0},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
   } catch (e) {
     error.value = e.message;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/6fe093b8-22a7-43f9-b1c3-8380735d7087',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AppointmentsBook.vue:loadSlots',message:'loadSlots error',data:{err:String(e?.message)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
   } finally {
     loadingSlots.value = false;
   }
@@ -266,11 +254,16 @@ async function submitCustomTime() {
 
 const preselectedDate = ref(route.query.date ? String(route.query.date).trim() : '');
 const preselectedMasterId = ref(route.query.masterId ? String(route.query.masterId).trim() : '');
+const preselectedMode = ref(route.query.mode ? String(route.query.mode).trim() : '');
 
 onMounted(async () => {
   await loadMasters();
   if (preselectedMasterId.value && masters.value.some((m) => m.id === preselectedMasterId.value)) {
     selectedMasterId.value = preselectedMasterId.value;
+  }
+  if (preselectedMode.value === 'customTime') {
+    bookingMode.value = 'customTime';
+    forModelsMode.value = false;
   }
   if (selectedMasterId.value && (bookingMode.value === 'slot' || bookingMode.value === 'customTime')) {
     await loadServices();
@@ -361,20 +354,26 @@ watch(slots, (newSlots) => {
         </div>
 
         <div v-if="(bookingMode === 'slot' || bookingMode === 'customTime') && selectedMasterId">
-          <label for="book-service" class="block text-sm font-medium mb-1 text-[var(--tg-theme-hint-color,#999)]">Услуга</label>
+          <span class="block text-sm font-medium mb-2 text-[var(--tg-theme-hint-color,#999)]">Услуга</span>
           <div v-if="loadingServices" class="text-[var(--tg-theme-hint-color,#999)]">Загрузка услуг…</div>
-          <select
-            v-else
-            id="book-service"
-            v-model="selectedServiceId"
-            class="w-full p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]"
-            @change="onServiceChange"
-          >
-            <option value="">Выберите услугу</option>
-            <option v-for="s in services" :key="s.id" :value="s.id">
-              {{ s.name }} · {{ s.durationMinutes }} min · {{ s.price != null ? s.price + '+ €' : '' }}
-            </option>
-          </select>
+          <div v-else-if="services.length === 0" class="text-[var(--tg-theme-hint-color,#999)]">Нет доступных услуг.</div>
+          <div v-else class="space-y-2">
+            <button
+              v-for="s in services"
+              :key="s.id"
+              type="button"
+              class="w-full text-left px-4 py-3 rounded-xl text-sm transition-colors"
+              :class="selectedServiceId === s.id
+                ? 'bg-white/10 border-2 border-[var(--tg-theme-button-text-color,#e8e8e8)] text-[var(--tg-theme-button-text-color,#e8e8e8)]'
+                : 'bg-[var(--tg-theme-secondary-bg-color,#f4f4f5)] border border-[var(--tg-theme-section-separator-color,#e5e5e5)]'"
+              @click="selectedServiceId = s.id; onServiceChange()"
+            >
+              <div class="font-medium">{{ s.name }}</div>
+              <div class="text-xs mt-0.5 text-[var(--tg-theme-hint-color,#999)]">
+                {{ s.durationMinutes }} min{{ s.price != null ? ' · ' + s.price + '+ €' : '' }}
+              </div>
+            </button>
+          </div>
         </div>
 
         <!-- Custom time request: date, time, note, fee rule -->

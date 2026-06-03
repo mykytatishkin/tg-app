@@ -147,12 +147,12 @@ export class CustomTimeRequestsService {
     }
 
     let client = await this.clientRepo.findOne({
-      where: { telegramId: user.telegramId, masterId: dto.masterId },
+      where: { telegramId: user.telegramId!, masterId: dto.masterId },
     });
     if (!client) {
       client = this.clientRepo.create({
         name: `${user.firstName} ${user.lastName || ''}`.trim(),
-        telegramId: user.telegramId,
+        telegramId: user.telegramId!,
         username: user.username ?? null,
         masterId: dto.masterId,
       });

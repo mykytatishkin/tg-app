@@ -103,7 +103,7 @@ export class CrmService {
     });
     const fromUsers = registered
       .map((u) => u.telegramId?.trim())
-      .filter((id): id is string => Boolean(id) && !clientSet.has(id));
+      .filter((id): id is string => typeof id === 'string' && id.length > 0 && !clientSet.has(id));
     return [...fromClients, ...fromUsers];
   }
 

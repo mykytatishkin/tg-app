@@ -68,7 +68,7 @@ export class AppointmentsService {
 
   async getMine(user: User) {
     let clients = await this.clientRepo.find({
-      where: { telegramId: user.telegramId },
+      where: { telegramId: user.telegramId! },
       select: ['id'],
     });
     let clientIds = clients.map((c) => c.id);
@@ -103,7 +103,7 @@ export class AppointmentsService {
   /** Get client IDs for current user (by telegramId or username match). */
   private async getMyClientIds(user: User): Promise<string[]> {
     let clients = await this.clientRepo.find({
-      where: { telegramId: user.telegramId },
+      where: { telegramId: user.telegramId! },
       select: ['id'],
     });
     let clientIds = clients.map((c) => c.id);
@@ -150,7 +150,7 @@ export class AppointmentsService {
   /** Client-side stats: total spent per master + per service. */
   async getMyStats(user: User) {
     const clients = await this.clientRepo.find({
-      where: { telegramId: user.telegramId },
+      where: { telegramId: user.telegramId! },
       relations: ['appointments', 'appointments.service', 'master'],
     });
     if (clients.length === 0) return { totalSpent: 0, byMaster: [] };
@@ -442,12 +442,12 @@ export class AppointmentsService {
     const masterId = await this.resolveMasterId(dto.masterId);
 
     let client = await this.clientRepo.findOne({
-      where: { telegramId: user.telegramId, masterId },
+      where: { telegramId: user.telegramId!, masterId },
     });
     if (!client) {
       client = this.clientRepo.create({
         name: `${user.firstName} ${user.lastName || ''}`.trim(),
-        telegramId: user.telegramId,
+        telegramId: user.telegramId!,
         username: user.username ?? null,
         masterId,
       });
